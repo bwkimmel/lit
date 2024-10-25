@@ -1,0 +1,5 @@
+<span
+  class="word status-{{status}}{% if min_status != status %} min-status-{{min_status}}{% endif %}"
+  data-word="{% for word in deps | reverse %}{{word}}{% if not loop.last %},{% endif %}{% endfor %}"
+  data-tippy-content='{% filter spaceless %}{% if words %}<div class="tooltiptext">{% include "define.html" %}</div>{% endif %}{% endfilter %}'
+  >{{text}}</span>

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Import Video{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.polyfills.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
+<style>
+#title {
+  width: auto;
+}
+</style>
+{% endblock head %}
+{% block content %}
+  <form method="POST">
+    <table>
+      <tr>
+        <td><label for="title">Title:</label></td>
+        <td>{{title}}</td>
+      </tr>
+      <tr>
+        <td><label for="subtitles">Subtitles:</label></td>
+        <td>
+          <select name="subtitles">
+            {% for st in subtitles %}
+              <option value="{{st.url}}"{% if loop.first %} selected{% endif %}>{{st.name}}{% if st.auto %} (auto-generated){% endif %}</option>
+            {% endfor %}
+            <option value="manual"{% if not subtitles %} selected{% endif %}>manual</option>
+          </select>
+        </td>
+      </tr>
+    </table>
+    <textarea name="tags" type="text" placeholder="tags">{% for tag in tags %}{{tag}}{% if not loop.last %},{% endif %}{% endfor %}</textarea><br>
+    <input type="hidden" name="url" value="{{url}}"></input>
+    <input type="hidden" name="title" value="{{title}}"></input>
+    <input type="hidden" name="published" value="{{published}}"></input>
+    <input type="hidden" name="duration" value="{{duration}}"></input>
+    <button type="submit">import</button>
+  </form>
+  <script>
+    function initForm() {
+      var tagInput = document.querySelector('[name="tags"]');
+      tagInput.tagify = new Tagify(tagInput);
+    }
+
+    <!-- $(function() { -->
+      initForm();
+    <!-- }); -->
+  </script>
+{% endblock %}

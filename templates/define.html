@@ -1,0 +1,49 @@
+<ul class="word-definitions">
+{% for word in words %}
+<li>
+  <div class="word-text status-{% if word.resolved_status %}{{word.resolved_status.1}}{% if word.resolved_status.0 != word.resolved_status.1 %} min-status-{{word.resolved_status.0}}{% endif %}{% endif %}{% if word.inherit %} inherit{% endif %}">{{ word.text }}</div>
+  {% if word.pronunciation %}
+    <div class="word-pronunciation">{{ word.pronunciation }}</div>
+  {% endif %}
+  <div class="word-translation">{{ word.translation | markdown }}</div>
+  {% if word.image_file %}
+    <img class="word-image" alt="{{ word.text }}" src="/words/{{ word.id }}/image?w=150&h=100">
+  {% endif %}
+  {% if word.debug %}
+    <div class="word-debug collapsible">
+      <button type="button" class="collapsible-button" onclick="toggleCollapsible(this);">debug</button>
+      <div class="collapsible-content">
+        {{ word.debug | linebreaksbr }}
+      </div>
+    </div>
+  {% endif %}
+  {% if word.tags %}
+    <ul class="word-tags">
+      {% for tag in word.tags %}
+        {% if tag not in hide_tags %}
+          <li>{{ tag }}</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if word.parents %}
+    <ul class="word-parents">
+      {% for parent in word.parents %}
+        <li>
+          {% if dict is containing(parent) %}
+            {% set words = dict | get(key=parent) %}
+            {% if words %}
+              {% include "define.html" %}
+            {% else %}
+              {{parent}} not defined
+            {% endif %}
+          {% else %}
+            {{parent}} missing
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</li>
+{% endfor %}
+</ul>

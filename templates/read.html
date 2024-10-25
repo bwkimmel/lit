@@ -1,0 +1,623 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <script src="https://unpkg.com/split-grid/dist/split-grid.js"></script>
+<style>
+.grid-container.video-hide {
+  grid-template-rows: 0px 0px 1fr auto;
+}
+.grid-container.video-show {
+  grid-template-rows: 1fr 5px 1fr auto;
+}
+.grid-container.read-hide {
+  grid-template-columns: 0px 0px 1fr;
+}
+.grid-container.lookup-hide {
+  grid-template-columns: 2fr 0px 0px;
+}
+.grid-container {
+  display: grid;
+  grid-template-columns: 2fr 5px 1fr;
+  grid-template-rows: 0px 0px 1fr auto;
+  grid-template-areas:
+    "a v b"
+    "h v b"
+    "c v b"
+    "d v b";
+  width: 100%;
+  height: 100%;
+  overflow: clip;
+}
+#book {
+  font-size: 24pt;
+  grid-area: c;
+  padding: 10px;
+  overflow-y: scroll;
+  overflow-x: clip;
+  padding-top: 1em;
+  padding-bottom: 1em;
+  position: relative;
+}
+#define {
+  grid-area: b;
+}
+#vertical-gutter {
+  position: relative;
+  grid-area: v;
+}
+#horizontal-gutter {
+  position: relative;
+  grid-area: h;
+}
+#define>iframe {
+  width: 100%;
+  height: 100%;
+}
+.gutter {
+  background-color: var(--gutter-color);
+  width: 100%;
+  height: 100%;
+}
+.vtt-cue {
+  background-color: #eeeeee;
+  padding: 10px;
+  border-radius: 15px;
+  margin: 5px;
+  border: 2px solid white;
+}
+.vtt-cue.active {
+  border: 2px solid black;
+}
+.vtt-cue>.vtt-cue-bullet:before {
+  content: "\25b7\00a0";
+  cursor: pointer;
+}
+.vtt-cue.active>.vtt-cue-bullet:before {
+  content: "\25b6\00a0";
+  cursor: pointer;
+}
+#book-audio-container {
+  grid-area: d;
+  width: 100%;
+}
+#book-media {
+  grid-area: a;
+  width: 100%;
+}
+#book-audio-container>audio {
+  width: 100%;
+}
+#book-video-youtube {
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+.tooltiptext {
+  font-weight: normal;
+  color: #fff;
+  border-radius: 6px;
+  padding: 5px;
+  font-size: 12pt;
+}
+
+.word {
+  white-space: nowrap;
+}
+
+ul.word-tags {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+ul.word-tags li {
+  display: inline-block;
+  background-color: #222222;
+  border: 1px solid #333333;
+  border-radius: 4px;
+  padding: 0px 4px;
+  font-size: 80%;
+}
+
+ul.word-definitions {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+.word-translation>p {
+  margin: 0.25ex 0;
+  padding: 0.25ex 0;
+}
+
+.top-gutter-button {
+  position: absolute;
+  font-size: 8pt;
+  background-color: var(--gutter-color);
+  cursor: pointer;
+  top: 100%;
+  width: 18px;
+  height: 12px;
+  border-radius: 0 0 5px 5px;
+  text-align: center;
+  vertical-align: top;
+}
+
+#toggle-fullscreen { right: 78px; }
+#set-std-aspect { right: 54px; }
+#toggle-video-button { right: 30px; }
+
+#toggle-lookup-button {
+  position: absolute;
+  bottom: 30px;
+  right: 100%;
+  font-size: 8pt;
+  background-color: var(--gutter-color);
+  padding: 5px 1px;
+  padding: 4px 1px 5px 2px;
+  cursor: pointer;
+  border-radius: 5px 0 0 5px;
+}
+
+#toggle-read-button {
+  position: absolute;
+  bottom: 30px;
+  left: 100%;
+  font-size: 8pt;
+  background-color: var(--gutter-color);
+  padding: 4px 2px 5px 2px;
+  cursor: pointer;
+  border-radius: 0 5px 5px 0;
+}
+
+#contents.fullscreen #book-media {
+  position: fixed;
+  z-index: 98;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
+}
+
+#contents.fullscreen #book {
+  position: fixed;
+  z-index: 99;
+  top: 70vh;
+  height: auto;
+  left: 25vw;
+  width: 50vw;
+  overflow: visible;
+  padding: unset;
+}
+
+#contents.fullscreen #book > div:has(.button) {
+  display: none;
+}
+
+#contents.fullscreen .vtt-cue {
+  display: none;
+  background-color: #eeeeee80;
+  text-shadow: 1px 1px 2px #eeeeee;
+}
+
+#contents.fullscreen .vtt-cue.active {
+  display: block;
+  opacity: 100%;
+}
+
+#contents.fullscreen .vtt-cue.prev-cue {
+  position: absolute;
+  bottom: 100%;
+  display: block;
+  opacity: 60%;
+  width: -webkit-fill-available;
+}
+
+#contents.fullscreen .vtt-cue.next-cue {
+  display: block;
+  opacity: 60%;
+}
+#contents.fullscreen .vtt-cue.prev-cue:hover {
+  opacity: 90%;
+}
+#contents.fullscreen .vtt-cue.next-cue:hover {
+  opacity: 90%;
+}
+
+.collapsed { height: 0; }
+</style>
+{% endblock %}
+{% block content %}
+  <div id="contents" class="grid-container{% if youtube_video_id %} video-show{% endif %}">
+    <div id="book-media">
+      {% if youtube_video_id %}
+        <div id="book-video-youtube"></div>
+      {% endif %}
+    </div>
+    <div id="book" class="grid-cell">
+      <div><a href="{{url}}" target="_blank" class="button fa fa-external-link">&nbsp;source</a></div>
+      {{ content | safe }}
+      <div>
+        <span class="button fa fa-check" onclick="markRead({{id}});">&nbsp;mark read</span>
+      </div>
+    </div>
+    <div id="book-audio-container" class="grid-cell">
+      {% if audio_format %}
+        <audio id="book-audio" controls src="/books/{{id}}/audio"></audio>
+      {% endif %}
+    </div>
+    <div id="define" class="grid-cell">
+      <iframe name="define">
+      </iframe>
+    </div>
+    <div id="vertical-gutter" class="gutter">
+      <div id="toggle-lookup-button" onclick="toggleLookup();" onmousedown="event.stopPropagation(); event.preventDefault();">&#x25B6;</div>
+      <div id="toggle-read-button" onclick="toggleRead();" onmousedown="event.stopPropagation(); event.preventDefault();">&#x25C0;</div>
+    </div>
+    <div id="horizontal-gutter" class="gutter">
+      {% if youtube_video_id %}
+      <div id="toggle-fullscreen" class="top-gutter-button fa fa-window-maximize" onclick="toggleFullscreen();" onmousedown="event.stopPropagation(); event.preventDefault();"></div>
+      <div id="set-std-aspect" class="top-gutter-button" onclick="setVideoStdAspect();" onmousedown="event.stopPropagation(); event.preventDefault();">&#x1F5B5;</div>
+      <div id="toggle-video-button" class="top-gutter-button fa fa-caret-up" onclick="toggleVideo(this);" onmousedown="event.stopPropagation(); event.preventDefault();"></div>
+      {% endif %}
+    </div>
+  </div>
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
+  <script>
+    var showingTippy = null;
+    tippy('[data-tippy-content]', {
+      onShow(e) {
+        showingTippy = e;
+      },
+      onHide(e) {
+        if (showingTippy == e) {
+          showingTippy = null;
+        }
+        e.setProps({ interactive: false });
+      },
+      allowHTML: true,
+    });
+
+    function isFullscreen() {
+      return document.getElementById('contents').classList.contains('fullscreen');
+    }
+
+    function setTippyInteractive(e) {
+      if (!showingTippy) {
+        return;
+      }
+      if (!e.shiftKey) {
+        return;
+      }
+      showingTippy.setProps({interactive: true});
+      showingTippy = null;
+    }
+
+    addEventListener('keydown', setTippyInteractive);
+    addEventListener('keyup', setTippyInteractive);
+  </script>
+  {% if youtube_video_id %}
+  <script>
+    function toggleFullscreen() {
+      console.log("toggling fullscreen");
+      const e = document.getElementById('contents');
+      if (e.classList.contains('fullscreen')) {
+        e.classList.remove('fullscreen');
+        scrollToCurrentCueNow();
+      } else {
+        e.classList.add('fullscreen');
+      }
+    }
+
+    function scrollToCurrentCueNow() {
+      var cue = document.querySelector('.vtt-cue.active');
+      if (!cue) { cue = document.querySelector('.next-cue'); }
+      if (!cue) { cue = document.querySelector('.prev-cue'); }
+      if (cue) { cue.scrollIntoView({behavior: 'instant', block: 'center'}); }
+    }
+
+    addEventListener('keydown', function(e) {
+      if (e.code == 'Escape') {
+        const contents = document.getElementById('contents');
+        if (contents.classList.contains('fullscreen')) {
+          contents.classList.remove('fullscreen');
+          scrollToCurrentCueNow();
+        }
+      }
+    });
+
+    function toggleVideo(e) {
+      console.log("toggling video");
+      const contents = document.getElementById('contents');
+      if (contents.classList.contains('video-show')) {
+        contents.classList.remove('video-show');
+        contents.classList.add('video-hide');
+        contents.setAttribute('x-grid-template-rows-saved', contents.style['grid-template-rows']);
+        contents.style['grid-template-rows'] = '';
+        e.classList.remove('fa-caret-up');
+        e.classList.add('fa-caret-down');
+      } else {
+        contents.classList.remove('video-hide');
+        contents.classList.add('video-show');
+        contents.style['grid-template-rows'] = contents.getAttribute('x-grid-template-rows-saved');
+        contents.removeAttribute('x-grid-template-rows-saved');
+        e.classList.remove('fa-caret-down');
+        e.classList.add('fa-caret-up');
+      }
+    }
+
+    function setVideoStdAspect() {
+      console.log("toggling standard aspect ratio");
+      const mediaElem = document.getElementById('book-media');
+      const mediaBound = mediaElem.getBoundingClientRect();
+      const e = document.getElementById('contents');
+      const bound = e.getBoundingClientRect();
+      const mediaHeight = mediaBound.width * 9 / 16;
+      const total = bound.height - 5; // -5px for gutter
+      const mediaFr = Math.min(2.0 * mediaHeight / total, 1.8);
+      const textFr = 2.0 - mediaFr;
+      e.style['grid-template-rows'] = `${mediaFr}fr 5px ${textFr}fr auto`;
+      if (e.classList.contains('video-hide')) {
+        e.classList.remove('video-hide');
+        e.classList.add('video-show');
+        e.removeAttribute('x-grid-template-rows-saved');
+        const btn = document.getElementById('toggle-video-button');
+        btn.classList.remove('fa-caret-down');
+        btn.classList.add('fa-caret-up');
+      }
+    }
+  </script>
+  {% endif %}
+  <script>
+    function toggleLookup() {
+      console.log("toggling lookup");
+      const e = document.getElementById('contents');
+      if (e.classList.contains('lookup-hide')) {
+        e.classList.remove('lookup-hide');
+        e.style['grid-template-columns'] = e.getAttribute('x-grid-template-columns-saved');
+        e.removeAttribute('x-grid-template-columns-saved');
+        document.getElementById('toggle-lookup-button').innerHTML = '&#x25B6;';
+        document.getElementById('toggle-read-button').style.display = '';
+      } else {
+        e.classList.add('lookup-hide');
+        e.setAttribute('x-grid-template-columns-saved', e.style['grid-template-columns']);
+        e.style['grid-template-columns'] = '';
+        document.getElementById('toggle-lookup-button').innerHTML = '&#x25C0;';
+        document.getElementById('toggle-read-button').style.display = 'none';
+      }
+    }
+
+    function toggleRead() {
+      console.log("toggling read");
+      const e = document.getElementById('contents');
+      if (e.classList.contains('read-hide')) {
+        e.classList.remove('read-hide');
+        e.style['grid-template-columns'] = e.getAttribute('x-grid-template-columns-saved');
+        e.removeAttribute('x-grid-template-columns-saved');
+        document.getElementById('toggle-read-button').innerHTML = '&#x25C0;';
+        document.getElementById('toggle-lookup-button').style.display = '';
+        document.getElementById('book').style.display = '';
+      } else {
+        e.classList.add('read-hide');
+        e.setAttribute('x-grid-template-columns-saved', e.style['grid-template-columns']);
+        e.style['grid-template-columns'] = '';
+        document.getElementById('toggle-read-button').innerHTML = '&#x25B6;';
+        document.getElementById('toggle-lookup-button').style.display = 'none';
+        document.getElementById('book').style.display = 'none';
+      }
+    }
+  </script>
+  {% if content_type == "text/vtt" %}
+  <script>
+    function updateVttCueTime(t) {
+      var prevCue = null;
+      var nextCue = null;
+      for (var cue of document.querySelectorAll('.vtt-cue')) {
+        const start = parseFloat(cue.getAttribute('data-start-ts'));
+        const end = parseFloat(cue.getAttribute('data-end-ts'));
+        if (t >= end) {
+          cue.classList.remove('active');
+          prevCue = cue;
+        } else if (t < start) {
+          cue.classList.remove('active');
+          if (nextCue == null) {
+            nextCue = cue;
+          }
+        } else {
+          if (!cue.classList.contains('active')) {
+            cue.classList.add('active');
+            cue.scrollIntoView({behavior: 'smooth', block: 'center'});
+          }
+        }
+      }
+      if (prevCue == null || !prevCue.classList.contains('prev-cue')) {
+        document.querySelectorAll('.prev-cue').forEach(cue => {
+          cue.classList.remove('prev-cue');
+        });
+        if (prevCue != null) {
+          prevCue.classList.add('prev-cue');
+        }
+      }
+      if (nextCue == null || !nextCue.classList.contains('next-cue')) {
+        document.querySelectorAll('.next-cue').forEach(cue => {
+          cue.classList.remove('next-cue');
+        });
+        if (nextCue != null) {
+          nextCue.classList.add('next-cue');
+        }
+      }
+    }
+
+    function endVttCue() {
+      document.querySelectorAll('.vtt-cue.active').forEach(cue => {
+        cue.classList.remove('active');
+      });
+    }
+
+    var navigateByVttCueObservers = new Array();
+    function onNavigateByVttCue(f) {
+      navigateByVttCueObservers.push(f);
+    }
+
+    var cueHoverPauseId = null;
+    var cueHoverPaused = false;
+    $('.vtt-cue').on('mouseover', function(event) {
+      if (youtubePlayer == null) {
+        return;
+      }
+      if (!isFullscreen()) {
+        return;
+      }
+      if (cueHoverPauseId != null) {
+        clearTimeout(cueHoverPauseId);
+        cueHoverPauseId = null;
+      }
+      const state = youtubePlayer.getPlayerState();
+      if (state == 1 || state == 3) {
+        youtubePlayer.pauseVideo();
+        cueHoverPaused = true;
+      }
+    });
+
+    $('.vtt-cue').on('mouseout', function(event) {
+      if (!cueHoverPaused) {
+        return;
+      }
+      cueHoverPauseId = setTimeout(function() {
+        cueHoverPaused = false;
+        youtubePlayer.playVideo();
+      }, 200);
+    });
+
+    $('.vtt-cue-bullet').on('click', function(event) {
+      var cue = event.target;
+      while (cue && !cue.classList.contains('vtt-cue')) {
+        cue = cue.parentNode;
+      }
+      if (!cue.hasAttribute('data-start-ts')) {
+        console.log('Target is not a VTT cue');
+        return;
+      }
+      const start = parseFloat(cue.getAttribute('data-start-ts'));
+      for (const f of navigateByVttCueObservers) {
+        f(start);
+      }
+    });
+  </script>
+  {% endif %}
+  <script>
+    var youtubePlayer = null;
+  </script>
+  {% if youtube_video_id %}
+  <script>
+    var tag = document.createElement('script');
+
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    function onYouTubeIframeAPIReady() {
+      var state = -1;
+      var player = new YT.Player('book-video-youtube', {
+        height: 390,
+        width: 640,
+        videoId: '{{youtube_video_id}}',
+        playerVars: {
+          'playsinline': 1
+        },
+        events: {
+          'onStateChange': function(event) { state = event.data; },
+          'onReady': onPlayerReady
+        }
+      });
+      youtubePlayer = player;
+      {% if content_type == "text/vtt" %}
+      setInterval(function() {
+        if (state == YT.PlayerState.PLAYING) {
+          updateVttCueTime(player.getCurrentTime());
+        } else if (state == YT.PlayerState.ENDED) {
+          endVttCue();
+        }
+      }, 100);
+      onNavigateByVttCue(function(t) {
+        player.seekTo(t, true);
+      });
+      {% endif %}
+    }
+
+    function onPlayerReady(event) {
+      var iframe = document.getElementById('book-video-youtube');
+      document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+      document.addEventListener('mozfullscreenchange', onFullscreenChange);
+      document.addEventListener('fullscreenchange', onFullscreenChange);
+      document.addEventListener('msfullscreenchange', onFullscreenChange);
+    }
+
+    function onFullscreenChange() {
+      var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+      if (fullscreenElement) {
+        console.log('Video is in fullscreen mode');
+        document.getElementById('book').classList.add('float');
+      } else {
+        console.log('Video is not in fullscreen mode');
+        document.getElementById('book').classList.remove('float');
+      }
+    }
+  </script>
+  {% endif %}
+  {% if content_type == "text/vtt" and audio_format %}
+  <script>
+    $('#book-audio').on('timeupdate', function(event) {
+      updateVttCueTime(event.target.currentTime);
+    });
+
+    $('#book-audio').on('ended', function(event) {
+      endVttCue();
+    });
+
+    onNavigateByVttCue(function(t) {
+      document.getElementById('book-audio').currentTime = t;
+    });
+  </script>
+  {% endif %}
+  <script>
+    Split({
+      columnGutters: [{
+        track: 1,
+        element: document.getElementById('vertical-gutter')
+      }],
+      rowGutters: [{
+        track: 1,
+        element: document.getElementById('horizontal-gutter')
+      }]
+    });
+
+    var selectedWord = null;
+    $('.word').on('click', function(event) {
+      console.log('Clicked on word');
+      const word = event.target.getAttribute('data-word');
+      if (!word) {
+        console.log("Target is not a word");
+        return;
+      }
+      if (selectedWord != null && selectedWord != event.target) {
+        selectedWord.classList.remove('selected');
+      }
+      selectedWord = event.target;
+      selectedWord.classList.add('selected');
+      window.open(`/define/${word}/edit`, "define");
+    });
+
+    async function markRead(bookId) {
+      const resp = await fetch(`/api/books/${bookId}/read`, {
+        method: 'POST',
+      });
+      if (!resp.ok) {
+        alert(`Could not mark as read: ${await resp.text()}`);
+        return;
+      }
+    }
+  </script>
+{% endblock content %}

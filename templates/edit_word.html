@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Edit word {{ word.text }}{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.polyfills.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
+  <script src="https://unpkg.com/tiny-markdown-editor/dist/tiny-mde.min.js"></script>
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://unpkg.com/tiny-markdown-editor/dist/tiny-mde.min.css"
+  />
+  <style type="text/css">
+    #word-edit { width: 600px; }
+    #word-edit input { width: 100%; }
+    #word-edit textarea { width: 100%; }
+    #word-edit tags { width: 100%; }
+    #translation-container { width: 100%; }
+  </style>
+{% endblock head %}
+{% block content %}
+  <div id="word-edit">
+    <input name="id" type="hidden" value="{{word.id}}"></input>
+    <input name="text" type="text" placeholder="text" value="{{word.text}}"></input><br>
+    <input id="parents" name="parents" type="text" placeholder="parents" value="{% for parent in word.parents %}{{parent}}{% if not loop.last %},{% endif %}{% endfor %}"></input><br>
+    <input name="pronunciation" type="text" placeholder="pronunciation" value="{{word.pronunciation}}"></input><br>
+    <textarea id="translation" name="translation" placeholder="translation">{{word.translation}}</textarea><br>
+    <input id="tags" name="tags" type="text" placeholder="tags" value="{% for tag in word.tags %}{{tag}}{% if not loop.last %},{% endif %}{% endfor %}"></input><br>
+  </div>
+  <script type="text/javascript">
+    var tagInput = document.querySelector('#tags');
+    new Tagify(tagInput, {
+      whitelist: [
+        {% for tag in all_tags %}
+          '{{tag}}'{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ]
+    });
+    var parentsInput = document.querySelector('#parents');
+    var parentsTagify = new Tagify(parentsInput, {
+      dropdown: {
+        mapValueTo: data => data.value + " (" + data.translation + ")",
+      }
+    });
+    var parentsController;
+    parentsTagify.on('input', function(e) {
+      var value = e.detail.value;
+      parentsTagify.whitelist = null;
+
+      parentsController && parentsController.abort("request superceded");
+      parentsController = new AbortController();
+      parentsTagify.loading();
+
+      fetch('/api/words-suggest?q=' + value, {signal:parentsController.signal})
+        .then(RES => RES.json())
+        .then(function(newWhitelist) {
+          parentsTagify.whitelist = newWhitelist;
+          parentsTagify.loading(false).dropdown.show(value);
+        })
+        .catch(function() {});
+    });
+    var tinyMDE = new TinyMDE.Editor({
+      textarea: "translation"
+    });
+  </script>
+{% endblock content %}

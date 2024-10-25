@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Find books{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+  <script src="//cdn.datatables.net/plug-ins/2.1.8/features/scrollResize/dataTables.scrollResize.min.js"></script>
+{% endblock head %}
+{% block content %}
+  <div class="full-page-table-wrapper">
+    <table id="books" class="display stripe" style="width:100%">
+      <thead>
+        <th>title</th>
+        <th>tags</th>
+        <th>added</th>
+        <th>published</th>
+        <th>last read</th>
+      </thead>
+    </table>
+  </div>
+  <script>
+    $('#books').DataTable({
+      ajax: '/api/books-dt',
+      scrollResize: true,
+      scrollY: 100,
+      serverSide: true,
+      processing: true,
+      columns: [
+        {
+          data: 'title',
+          render: function(data, type, row) {
+            if (type === 'display') {
+              console.log(row);
+              return '<a href="/read/' + row.id.toString() + '">' + data + '</a>'
+            }
+            return data;
+          }
+        },
+        { data: 'tags' },
+        { data: 'added' },
+        { data: 'published' },
+        { data: 'last_read' }
+      ]
+    });
+    $.fn.dataTable.ext.errMode = 'throw';
+  </script>
+{% endblock content %}

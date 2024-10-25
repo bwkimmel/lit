@@ -1,0 +1,135 @@
+# List of tags not to display on the card.
+hidden_tags = [
+  "loan",
+  "anki",
+  "anki:force",
+  "generated",
+  "fixme",
+  "topik1",
+  "topik2",
+  "topik1v",
+  "topik2v",
+  "not:topik1",
+  "not:topik2",
+  "not:topik1v",
+  "not:topik2v",
+  "...",
+]
+
+# List of tags which, if present, will prevent an Anki card from being generated
+# which includes this word.
+exclude_tags = [
+  "fixme",
+  "generated",
+  "interjection",
+  "onomatopoeia",
+  "transliteration",
+  "???",
+  "sic",
+  "particle",
+  "loan",
+  "misparsed",
+]
+
+# List of tags, which, if present, will cause an Anki card to be generated for
+# this word, even if it otherwise wouldn't be generated (e.g., even if the word
+# has parents).
+include_tags = [
+  "anki",
+  "anki:force",
+  "topik1",
+  "topik2",
+  "topik1v",
+  "topik2v",
+]
+
+# Notes export from Anki. The "include unique identifier" must be checked when
+# exporting from Anki. Use this if you have an existing Anki deck and you want
+# Anki export to update existing cards, rather than create new ones. If you're
+# starting from scratch, this can be omitted.
+#
+#guids_export = "/mnt/c/Users/intre/OneDrive/Documents/Korean.txt"
+
+# Directory containing user data (which, in turn, contains word images). This
+# path may be absolute, or relative to this file.
+userdata = "prod/userdata"
+
+# Only generate Anki cards for words with at least this status (may be
+# overridden by tags or by status overrides below).
+min_status = 4
+
+[images]
+max_width = 480
+max_height = 360
+
+[database]
+# Path to database, either absolute or relative to this file.
+path = "prod/lit.db"
+max_connections = 5
+
+# If the folowing tags are present, override the minimum status indicated above.
+[min_status_override]
+"anki:force" = 1
+topik1 = 1
+topik1v = 1
+topik2 = 3
+topik2v = 3
+
+# Anki note fields and card template.
+[model]
+id = 0x515aeef3
+name = "Lute Term (Korean)"
+fields = [
+  { name = "Term" },
+  { name = "Language" },
+  { name = "Pronunciation" },
+  { name = "Translation" },
+  { name = "Image" },
+]
+css = """\
+.card {
+  font-family: arial;
+  font-size: 20px;
+  text-align: center;
+  color: black;
+  background-color: white;
+}
+h1 {
+  font-size: small;
+  padding-bottom: 1em;
+}
+"""
+
+[[model.templates]]
+name = "Recognize"
+qfmt = """\
+<h1>What does this {{Language}} word mean?</h1>
+{{Term}}
+{{tts ko_KR voices=Microsoft_InJoon:Term}}
+<br>
+{{#Pronunciation}}
+  <br>
+  Pronunciation: {{Pronunciation}}
+{{/Pronunciation}}
+"""
+afmt = """\
+{{FrontSide}}
+
+<hr id="answer">
+
+{{Translation}}
+<br>
+{{#Tags}}
+  <br>
+  Tags: {{Tags}}
+{{/Tags}}
+{{#Image}}
+  <br><br>
+  {{Image}}
+{{/Image}}
+"""
+
+[deck]
+id = 0x532d74b9
+name = "Korean::Vocab"
+description = "Korean word cards"

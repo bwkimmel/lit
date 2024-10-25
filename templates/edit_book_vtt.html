@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock title %}
+{% block head %}
+  {{ super() }}
+<style>
+.vtt-cue {
+  background-color: #eeeeee;
+  padding: 10px;
+  border-radius: 15px;
+  margin: 5px;
+  border: 2px solid white;
+}
+.vtt-cue.active {
+  border: 2px solid black;
+}
+.vtt-cue>.vtt-cue-bullet:before {
+  content: "\25b7\00a0";
+  cursor: pointer;
+  vertical-align: top;
+}
+.vtt-cue.active>.vtt-cue-bullet:before {
+  content: "\25b6\00a0";
+  cursor: pointer;
+}
+.vtt-cue textarea {
+  field-sizing: content;
+  max-height: 50vh;
+  resize: none;
+  width: calc(100% - 3em);
+}
+#contents {
+  height: 100%;
+}
+#book-media {
+  position: fixed;
+  right: 0;
+  top: 0;
+}
+#controls {
+  position: sticky;
+}
+#vtt {
+  height: 100%;
+  width: 50%;
+  grid-area: c;
+  padding: 10px;
+  overflow-y: scroll;
+  overflow-x: clip;
+  padding-top: 1em;
+  padding-bottom: 1em;
+  position: relative;
+}
+.vtt-cue-split {
+  width: 100%;
+  text-align: center;
+}
+.vtt-cue-split .timestamp {
+  width: 10ex;
+  text-align: right;
+  padding: 0 1em;
+  display: inline-block;
+}
+.vtt-cue-split .button.op-merge {
+  color: red;
+}
+#vtt-cue-split-template {
+  display: none;
+}
+</style>
+{% endblock %}
+{% block content %}
+  <div id="contents">
+    <div id="book-media">
+      {% if youtube_video_id %}
+        <div id="book-video-youtube"></div>
+      {% endif %}
+    </div>
+    <div id="controls">
+      <span class="button op-save fa fa-save">&nbsp;Save</span>
+    </div>
+    <div id="vtt">
+      {{ content | safe }}
+      <div style="height: 50px;"></div>
+    </div>
+  </div>
+  <div id="vtt-cue-split-template" class="vtt-cue-split">
+    <span class="button op-merge fa fa-link"></span>
+    <span class="button op-shift fa fa-backward" data-delta="-0.250"></span>
+    <span class="button op-shift fa fa-fast-backward" data-delta="-0.050"></span>
+    <span class="button op-shift fa fa-step-backward" data-delta="-0.010"></span>
+    <span class="timestamp"></span>
+    <span class="button op-shift fa fa-step-forward" data-delta="0.010"></span>
+    <span class="button op-shift fa fa-fast-forward" data-delta="0.050"></span>
+    <span class="button op-shift fa fa-forward" data-delta="0.250"></span>
+  </div>
+  <script>
+    var youtubePlayer = null;
+  </script>
+  {% if youtube_video_id %}
+    <script>
+      var tag = document.createElement('script');
+
+      tag.src = "https://www.youtube.com/iframe_api";
+      var firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      function onYouTubeIframeAPIReady() {
+        var state = -1;
+        var player = new YT.Player('book-video-youtube', {
+          height: 390,
+          width: 640,
+          videoId: '{{youtube_video_id}}',
+          playerVars: {
+            'playsinline': 1
+          },
+          events: {
+            'onStateChange': function(event) { state = event.data; },
+          }
+        });
+        youtubePlayer = player;
+        {% if content_type == "text/vtt" %}
+        setInterval(function() {
+          if (state == YT.PlayerState.PLAYING) {
+            updateVttCueTime(player.getCurrentTime());
+          } else if (state == YT.PlayerState.ENDED) {
+            endVttCue();
+          }
+        }, 100);
+        onNavigateByVttCue(function(t) {
+          player.seekTo(t, true);
+        });
+        {% endif %}
+      }
+    </script>
+  {% endif %}
+  <script>
+    function updateVttCueTime(t) {
+      document.querySelectorAll('.vtt-cue').forEach(cue => {
+        const start = parseFloat(cue.getAttribute('data-start-ts'));
+        const end = parseFloat(cue.getAttribute('data-end-ts'));
+        if (start <= t && t < end) {
+          if (!cue.classList.contains('active')) {
+            cue.classList.add('active');
+            cue.querySelector('.vtt-cue-bullet').scrollIntoView({behavior: 'smooth', block: 'center'});
+          }
+        } else {
+          cue.classList.remove('active');
+        }
+      });
+    }
+
+    function endVttCue() {
+      document.querySelectorAll('.vtt-cue.active').forEach(cue => {
+        cue.classList.remove('active');
+      });
+    }
+
+    var navigateByVttCueObservers = new Array();
+    function onNavigateByVttCue(f) {
+      navigateByVttCueObservers.push(f);
+    }
+
+    function onVttCueBulletClick(event) {
+      var cue = event.target;
+      while (cue && !cue.classList.contains('vtt-cue')) {
+        cue = cue.parentNode;
+      }
+      if (!cue.hasAttribute('data-start-ts')) {
+        console.log('Target is not a VTT cue');
+        return;
+      }
+      const start = parseFloat(cue.getAttribute('data-start-ts'));
+      for (const f of navigateByVttCueObservers) {
+        f(start);
+      }
+    }
+
+    <!-- $(function() { -->
+      $('.vtt-cue-bullet').on('click', onVttCueBulletClick);
+    <!-- }); --> 
+  </script>
+  <script>
+    function getCurrentTime() {
+      if (youtubePlayer != null) {
+        return youtubePlayer.getCurrentTime();
+      }
+      return null;
+    }
+
+    async function saveVtt() {
+      const bookId = {{id}};
+      const resp = await fetch(`/api/books/${bookId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: generateVtt()
+        }),
+      });
+      if (!resp.ok) {
+        alert(`Could not save book: ${await resp.text()}`);
+        return;
+      }
+    }
+
+    function generateVtt() {
+      // FIXME: use configured lang
+      var vtt = `WEBVTT
+Kind: captions
+Language: ko
+
+`;
+      for (var cue of document.querySelectorAll('.vtt-cue')) {
+        const start = formatTime(Number(cue.getAttribute('data-start-ts')));
+        const end = formatTime(Number(cue.getAttribute('data-end-ts')));
+        const text = cue.querySelector('textarea').value;
+
+        if (text == "") {
+          continue;
+        }
+
+        vtt += `${start} --> ${end}\n`
+        for (var line of text.split('\n')) {
+          if (line == "") {
+            vtt += " ";
+          } else {
+            vtt += line;
+          }
+          vtt += "\n";
+        }
+        vtt += "\n";
+      }
+
+      return vtt;
+    }
+
+    function formatTime(t) {
+      var x = Math.round(t * 1000);
+      const ms = x % 1000;
+      x -= ms;
+      x /= 1000;
+      const s = x % 60;
+      x -= s;
+      x /= 60;
+      const m = x % 60;
+      x -= m;
+      x /= 60;
+      const h = x;
+
+      var str = "";
+      if (h >= 10) {
+        str = h.toString() + ":";
+      } else if (h > 0) {
+        str = "0" + h.toString() + ":";
+      }
+      if (m < 10) {
+        str += "0";
+      }
+      str += m.toString();
+      str += ":";
+      if (s < 10) {
+        str += "0";
+      }
+      str += s.toString();
+      str += ".";
+      if (ms < 10) {
+        str += "00";
+      } else if (ms < 100) {
+        str += "0";
+      }
+      str += ms.toString();
+      return str;
+    }
+
+    function updateVttCueBulletTitle(e) {
+      const t1 = formatTime(e.getAttribute('data-start-ts'));
+      const t2 = formatTime(e.getAttribute('data-end-ts'));
+      var bullet = e.querySelector('.vtt-cue-bullet');
+      bullet.setAttribute('title', `${t1} - ${t2}`);
+    }
+
+    function splitVttCue(e) {
+      const oldCue = e.parentNode;
+      var t = getCurrentTime();
+      if (t == null) {
+        console.warn('cannot determine current time');
+        return;
+      }
+      t = t.toFixed(3);
+
+      const cueStart = Number(oldCue.getAttribute('data-start-ts'));
+      const cueEnd = Number(oldCue.getAttribute('data-end-ts'));
+      if (t <= cueStart || t >= cueEnd) {
+        console.warn(`current timestamp (${t}) outside range for selected cue (${cueStart}, ${cueEnd}).`);
+        return;
+      }
+
+      const splitter = document.getElementById('vtt-cue-split-template').cloneNode(true);
+      splitter.removeAttribute('id');
+
+      const tsNode = splitter.querySelector('.timestamp');
+      tsNode.innerHTML = formatTime(t);
+      tsNode.setAttribute('data-value', t);
+
+      const newCue = oldCue.cloneNode(true);
+      const newText = newCue.querySelector('textarea');
+      const newBullet = newCue.querySelector('.vtt-cue-bullet');
+      $(newText).on('keypress', onVttCueTextAreaKeyPress);
+      $(newBullet).on('click', onVttCueBulletClick);
+      newCue.classList.remove('active');
+
+      const before = e.value.slice(0, e.selectionStart).trimEnd();
+      const after = e.value.slice(e.selectionStart).trimStart();
+      console.log(`Pos   : ${e.selectionStart}`);
+      console.log(`Time  : ${t}`);
+      console.log(`Before: ${before}`);
+      console.log(`After : ${after}`);
+      oldCue.setAttribute('data-start-ts', t);
+      newCue.setAttribute('data-end-ts', t);
+      updateVttCueBulletTitle(oldCue);
+      updateVttCueBulletTitle(newCue);
+      oldCue.parentNode.insertBefore(newCue, oldCue);
+      oldCue.parentNode.insertBefore(splitter, oldCue);
+      newText.value = before;
+      e.value = after;
+      updateVttCueTextAreaHeight(e);
+      updateVttCueTextAreaHeight(newText);
+      initSplitter(splitter);
+      oldCue.querySelector('.vtt-cue-bullet').scrollIntoView({behavior: 'smooth', block: 'center'});
+      const firstLineLen = after.indexOf("\n");
+      if (firstLineLen < 0) {
+        return;
+      }
+      e.selectionStart = firstLineLen;
+      e.selectionEnd = firstLineLen;
+    }
+
+    function updateVttCueTextAreaHeight(e) {
+      e.style.height = "";
+      e.style.height = e.scrollHeight + "px";
+    }
+
+    function onVttCueTextAreaKeyPress(event) {
+      if (event.ctrlKey && event.code == "Enter") {
+        splitVttCue(event.target);
+        return;
+      }
+      updateVttCueTextAreaHeight(event.target);
+    }
+
+    function getSplitterContaining(e) {
+      var splitter = e;
+      while (splitter != null && !splitter.classList.contains('vtt-cue-split')) {
+        splitter = splitter.parentNode;
+      }
+      return splitter;
+    }
+
+    function removeSplit(event) {
+      const e = event.target;
+      const delta = Number(e.getAttribute('data-delta'));
+      const splitter = getSplitterContaining(e);
+      if (splitter == null) {
+        console.warn('no splitter');
+        return;
+      }
+      const cueBefore = splitter.previousElementSibling;
+      if (cueBefore == null) {
+        console.warn('no cue before');
+        return;
+      }
+      const cueAfter = splitter.nextElementSibling;
+      if (cueAfter == null) {
+        console.warn('no cue after');
+        return;
+      }
+      const textAfter = cueAfter.querySelector('textarea').value;
+      const timeAfter = cueAfter.getAttribute('data-end-ts');
+      cueAfter.remove();
+      splitter.remove();
+      cueBefore.querySelector('textarea').value += '\n' + textAfter;
+      cueBefore.setAttribute('data-end-ts', timeAfter);
+      updateVttCueTextAreaHeight(cueBefore);
+    }
+
+    function shiftSplit(event) {
+      const e = event.target;
+      const delta = Number(e.getAttribute('data-delta'));
+      const splitter = getSplitterContaining(e);
+      if (splitter == null) {
+        console.warn('no splitter');
+        return;
+      }
+      const cueBefore = splitter.previousElementSibling;
+      if (cueBefore == null) {
+        console.warn('no cue before');
+        return;
+      }
+      const cueAfter = splitter.nextElementSibling;
+      if (cueAfter == null) {
+        console.warn('no cue after');
+        return;
+      }
+      const t0 = Number(cueBefore.getAttribute('data-start-ts'));
+      const t1 = Number(cueAfter.getAttribute('data-end-ts'));
+      const tsNode = splitter.querySelector('.timestamp');
+      var t = Number(tsNode.getAttribute('data-value'));
+      t += delta;
+      t = t.toFixed(3);
+      if (t <= t0) {
+        console.warn('cannot move split before beginning of previous cue');
+        return;
+      }
+      if (t >= t1) {
+        console.warn('cannot move split after end of next cue');
+        return;
+      }
+      cueBefore.setAttribute('data-end-ts', t);
+      cueAfter.setAttribute('data-start-ts', t);
+      updateVttCueBulletTitle(cueBefore);
+      updateVttCueBulletTitle(cueAfter);
+      tsNode.setAttribute('data-value', t);
+      tsNode.innerHTML = formatTime(t);
+    }
+
+    function initSplitter(e) {
+      $(e.querySelector('.op-merge')).on('click', removeSplit);
+      for (var shift of e.querySelectorAll('.op-shift')) {
+        $(shift).on('click', shiftSplit);
+      }
+    }
+
+    <!-- $(function() { -->
+      $('.vtt-cue textarea').on('keypress', onVttCueTextAreaKeyPress);
+      $('.op-save').on('click', saveVtt);
+      for (var e of document.querySelectorAll('.vtt-cue-split')) {
+        initSplitter(e);
+      }
+    <!-- }); --> 
+  </script>
+{% endblock content %}

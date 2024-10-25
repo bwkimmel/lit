@@ -1,0 +1,34 @@
+{% if start > prev_end %}
+  {% if prev_end > 0 %}
+    <div class="vtt-cue-split">
+      <span class="button op-merge fa fa-link"></span>
+      <span class="button op-shift fa fa-backward" data-delta="-0.250"></span>
+      <span class="button op-shift fa fa-fast-backward" data-delta="-0.050"></span>
+      <span class="button op-shift fa fa-step-backward" data-delta="-0.010"></span>
+      <span class="timestamp" data-value="{{prev_end | round(precision=3)}}">{{prev_end_fmt}}</span>
+      <span class="button op-shift fa fa-step-forward" data-delta="0.010"></span>
+      <span class="button op-shift fa fa-fast-forward" data-delta="0.050"></span>
+      <span class="button op-shift fa fa-forward" data-delta="0.250"></span>
+    </div>
+  {% endif %}
+  <div class="vtt-cue" data-start-ts="{{prev_end | round(precision=3)}}" data-end-ts="{{start | round(precision=3)}}">
+    <span class="vtt-cue-bullet" title="{{prev_end_fmt}} - {{start_fmt}}"></span>
+    <textarea oninput="updateVttCueTextAreaHeight(this);"></textarea>
+  </div>
+{% endif %}
+{% if start > 0 %}
+  <div class="vtt-cue-split">
+    <span class="button op-merge fa fa-link"></span>
+    <span class="button op-shift fa fa-backward" data-delta="-0.250"></span>
+    <span class="button op-shift fa fa-fast-backward" data-delta="-0.050"></span>
+    <span class="button op-shift fa fa-step-backward" data-delta="-0.010"></span>
+    <span class="timestamp" data-value="{{start | round(precision=3)}}">{{start_fmt}}</span>
+    <span class="button op-shift fa fa-step-forward" data-delta="0.010"></span>
+    <span class="button op-shift fa fa-fast-forward" data-delta="0.050"></span>
+    <span class="button op-shift fa fa-forward" data-delta="0.250"></span>
+  </div>
+{% endif %}
+<div class="vtt-cue" data-start-ts="{{start | round(precision=3)}}" data-end-ts="{{end | round(precision=3)}}">
+  <span class="vtt-cue-bullet" title="{{start_fmt}} - {{end_fmt}}"></span>
+  {{content | safe}}
+</div>

@@ -1,0 +1,791 @@
+{% extends "base.html" %}
+{% block title %}Edit definitions for {{texts}}{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <script src="https://unpkg.com/split-grid/dist/split-grid.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.polyfills.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
+  <script src="https://unpkg.com/tiny-markdown-editor/dist/tiny-mde.min.js"></script>
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://unpkg.com/tiny-markdown-editor/dist/tiny-mde.min.css"
+  />
+  <style>
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      margin: 0;
+    }
+    .word-edit { width: 100%; }
+    .word-edit form>input { width: 100%; }
+    .word-edit form>textarea { width: 100%; }
+    .word-edit form>tags { width: 100%; }
+    .word-edit form>div { width: 100%; }
+    .translation-container { width: 100%; }
+    .error { background-color: red; text-color: white; padding: 5px; }
+    .tab { display: none; }
+    .tab.active {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #words-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 5px 1fr;
+      grid-template-areas:
+        "a"
+        "h"
+        "b";
+      width: 100%;
+      height: 100%;
+      overflow: clip;
+    }
+    #words-edit-panel {
+      grid-area: a;
+      overflow-y: scroll;
+    }
+    #words-edit {
+      padding: 10px;
+    }
+    #words-dictionaries-panel {
+      grid-area: b;
+    }
+    #word-edit-template {
+      display: none;
+    }
+    #horizontal-gutter {
+      grid-area: h;
+    }
+    .gutter {
+      background-color: var(--gutter-color);
+      width: 100%;
+      height: 100%;
+    }
+    .tab-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-flow: column;
+    }
+    .tab-header {
+      flex: 0 1 auto;
+    }
+    .tab {
+      flex: 1 1 auto;
+    }
+    .hidden { display: none; }
+    #words-edit>table {
+      width: 100%;
+    }
+    .delete-button {
+      color: red;
+    }
+    .expandable {
+      /* FIXME */
+      transition: max-height 0.5s ease-in;
+      max-height: 1000px;
+      height: auto;
+    }
+    .status-edit {
+      display: flex;
+    }
+    .status-edit input {
+      appearance: none;
+      margin: 0;
+      padding: 0;
+    }
+    .status-edit label {
+      display: inline-block;
+      cursor: pointer;
+      border: 1px solid transparent;
+      padding: 3px;
+      margin: 0;
+    }
+    .status-edit label span {
+      display: inline-block;
+      width: 1em;
+      text-align: center;
+      font-weight: bold;
+    }
+    label.status-98:hover, label.status-99:hover, label:has(> .status-inherit):not(:has(> :disabled)):hover {
+      background-color: #333333;
+    }
+    .status-edit label:not(:has(> :disabled)):hover {
+      filter: brightness(1.5);
+    }
+    .status-edit label:has(> :checked) {
+      filter: brightness(1.5);
+      border: 1px solid currentColor;
+    }
+    .status-edit label:has(> :disabled) {
+      color: gray;
+      cursor: default;
+    }
+    .translation-summary p, .translation-summary ol, .translation-summary ul {
+      display: inline;
+      padding: 0;
+      margin: 0;
+    }
+    .translation-summary li {
+      list-style-type: none;
+    }
+    .parents-list {
+      color: gray;
+    }
+  </style>
+{% endblock head %}
+{% block content %}
+  <div id="words-grid">
+    <div id="words-edit-panel">
+      <div id="words-edit">
+        <table>
+          {% for text in texts %}
+            {% set words = dict | get(key=text) %}
+            <tbody class="word-text" data-word-text="{{text}}">
+              <tr>
+                <td style="width: 0; white-space: nowrap;">
+                  <span class="button fa fa-plus" data-word-text="{{text}}" onclick="addWord(this);"/>
+                </td>
+                <td colspan="3"><span class="word-text-label">{{text}}</span>&#x2002;<span class="button fa fa-search" data-word-text="{{text}}" onclick="lookupWord(this);"/></td>
+              </tr>
+            </tbody>
+            {% for word in words %}
+              <tbody class="word-edit" data-word-id="{{word.id}}" data-word-text="{{word.text}}">
+                <tr>
+                  <td style="width: 1em; white-space: nowrap;"><span class="word-edit-toggle button fa fa-caret-right" onclick="toggleRow(this);"></span></td>
+                  <td>
+                    <span class="translation-summary">{{word.translation | firstline | markdown | safe}}</span>
+                    <span class="parents-list">{% if word.parents %}({% for parent in word.parents %}{{parent}}{% if not loop.last %},{% endif %}{% endfor %}){% endif %}</span>
+                  </td>
+                  <td style="width: 0; white-space: nowrap;">
+                    <form>
+                      <span class="status-edit">
+                        <label><input class="status-inherit" type="radio" name="status"{% if word.inherit %} checked{% endif %}{% if not word.parents %} disabled{% endif %} onchange="saveWord(this);"><span class="fa fa-link"/></label>
+                        <label class="status-1"><input type="radio" name="status" value="1"{% if word.status == 1 %} checked{% endif %} onchange="saveWord(this);"/><span>1</span></label>
+                        <label class="status-2"><input type="radio" name="status" value="2"{% if word.status == 2 %} checked{% endif %} onchange="saveWord(this);"/><span>2</span></label>
+                        <label class="status-3"><input type="radio" name="status" value="3"{% if word.status == 3 %} checked{% endif %} onchange="saveWord(this);"/><span>3</span></label>
+                        <label class="status-4"><input type="radio" name="status" value="4"{% if word.status == 4 %} checked{% endif %} onchange="saveWord(this);"/><span>4</span></label>
+                        <label class="status-5"><input type="radio" name="status" value="5"{% if word.status == 5 %} checked{% endif %} onchange="saveWord(this);"/><span>5</span></label>
+                        <label class="status-99"><input type="radio" name="status" value="99"{% if word.status == 99 %} checked{% endif %} onchange="saveWord(this);"/><span class="fa fa-check"/></label>
+                        <label class="status-98"><input type="radio" name="status" value="98"{% if word.status == 98 %} checked{% endif %} onchange="saveWord(this);"/><span class="fa fa-ban"/></label>
+                      </span>
+                    </form>
+                  </td>
+                  <td style="width: 1em; white-space: nowrap;">
+                    <span class="delete-button button fa fa-trash" onclick="deleteWord(this);"/>
+                  </td>
+                </tr>
+                <tr class="expandable hidden">
+                  <td></td>
+                  <td colspan="3">
+                    <form>
+                      <div class="error" style="display: none;"></div>
+                      <input name="parents" type="text" placeholder="parents" value="{% for parent in word.parents %}{{parent}}{% if not loop.last %},{% endif %}{% endfor %}" onchange="changeParents(this); saveWord(this);"></input><br>
+                      <input name="pronunciation" type="text" placeholder="pronunciation" value="{{word.pronunciation}}" onchange="saveWord(this);"></input><br>
+                      <textarea name="translation" placeholder="translation" onchange="saveWord(this);">{{word.translation}}</textarea><br>
+                      <input name="image" type="file" accept="image/*" onchange="saveImage(this);"></input>
+                      <img class="word-image" src="/words/{{ word.id }}/image?w=150&h=100"{% if not word.image_file %} style="display: none;"{% endif %}/>
+                      <button type="button" onclick="deleteImage(this);">clear image</button>
+                      <input name="tags" type="text" placeholder="tags" value="{% for tag in word.tags %}{{tag}}{% if not loop.last %},{% endif %}{% endfor %}" onchange="saveWord(this);"></input><br>
+                    </form>
+                  </td>
+                </tr>
+              </tbody>
+            {% endfor %}
+          {% endfor %}
+          <tbody id="word-edit-template" class="word-edit">
+            <tr>
+              <td style="width: 1em; white-space: nowrap;"><span class="word-edit-toggle button fa fa-caret-down" onclick="toggleRow(this);"></span></td>
+              <td>
+                <span class="translation-summary">(new)</span>
+                <span class="parents-list"></span>
+              </td>
+              <td style="width: 0; white-space: nowrap;">
+                <form class="word-status-edit">
+                  <span class="status-edit">
+                    <label><input class="status-inherit" type="radio" name="status" disabled onchange="saveWord(this);"><span class="fa fa-link"/></label>
+                    <label class="status-1"><input type="radio" name="status" value="1" checked onchange="saveWord(this);"/><span>1</span></label>
+                    <label class="status-2"><input type="radio" name="status" value="2" onchange="saveWord(this);"/><span>2</span></label>
+                    <label class="status-3"><input type="radio" name="status" value="3" onchange="saveWord(this);"/><span>3</span></label>
+                    <label class="status-4"><input type="radio" name="status" value="4" onchange="saveWord(this);"/><span>4</span></label>
+                    <label class="status-5"><input type="radio" name="status" value="5" onchange="saveWord(this);"/><span>5</span></label>
+                    <label class="status-99"><input type="radio" name="status" value="99" onchange="saveWord(this);"/><span class="fa fa-check"/></label>
+                    <label class="status-98"><input type="radio" name="status" value="98" onchange="saveWord(this);"/><span class="fa fa-ban"/></label>
+                  </span>
+                </form>
+              </td>
+              <td style="width: 1em; white-space: nowrap;">
+                <span class="delete-button button fa fa-trash" onclick="deleteWord(this);"/>
+              </td>
+            </tr>
+            <tr class="expandable">
+              <td></td>
+              <td colspan="3">
+                <form>
+                  <div class="error" style="display: none;"></div>
+                  <input name="parents" type="text" placeholder="parents" onchange="changeParents(this); saveWord(this);"></input><br>
+                  <input name="pronunciation" type="text" placeholder="pronunciation" onchange="saveWord(this);"></input><br>
+                  <textarea name="translation" placeholder="translation" onchange="saveWord(this);"></textarea><br>
+                  <input name="image" type="file" accept="image/*" onchange="saveImage(this);"></input>
+                  <img class="word-image" style="display: none;"/>
+                  <button type="button" onclick="deleteImage(this);">clear image</button>
+                  <input name="tags" type="text" placeholder="tags" onchange="saveWord(this);"></input><br>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <input id="new-text" type="text" placeholder="add another word" onchange="addNewText(this);"></input>
+      </div>
+    </div>
+    <div id="words-dictionaries-panel">
+      {% if not dictionaries %}
+        No dictionaries configured
+      {% else %}
+        <div class="tab-container">
+          <div class="tab-header">
+            {% for dictionary in dictionaries %}
+              <button type="button" class="tab-button{% if loop.first %} active{% endif %}" data-tab-index="{{loop.index0}}" onclick="openDictionary(this);">
+                {% if dictionary.name %}
+                  {{dictionary.name}}
+                {% else %}
+                  {{dictionary.url | url_domain}}
+                {% endif %}
+              </button>
+            {% endfor %}
+          </div>
+          {% for dictionary in dictionaries %}
+            <iframe
+              class="tab{% if loop.first %} active{% endif %}"
+              data-tab-index="{{loop.index0}}"
+              data-url-tmpl="{{dictionary.url}}">
+            </iframe>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+    <div id="horizontal-gutter" class="gutter"></div>
+  </div>
+  <script>
+    async function toggleRow(e) {
+      var tr = e;
+      while (tr.tagName != 'TR') {
+        tr = tr.parentNode;
+        if (tr == null) {
+          console.warn("expand button not inside table row");
+          return;
+        }
+      }
+      tr = tr.nextElementSibling;
+      if (!tr.classList.contains('expandable')) {
+        console.warn("row following expand button is not expandable");
+        return;
+      }
+      if (tr.classList.contains('hidden')) {
+        tr.classList.remove('hidden');
+        e.classList.remove('fa-caret-right');
+        e.classList.add('fa-caret-down');
+      } else {
+        tr.classList.add('hidden');
+        e.classList.remove('fa-caret-down');
+        e.classList.add('fa-caret-right');
+        await updateSummary(e);
+      }
+    }
+
+    async function updateSummary(e) {
+      e = getEditorNode(e);
+      if (!e) {
+        console.warn('node is not in an editor');
+        return;
+      }
+      const id = e.getAttribute('data-word-id');
+      if (!id) {
+        console.log("Word not saved; no image to delete");
+        return;
+      }
+      const resp = await fetch(`/words/${id}/summary`);
+      if (!resp.ok) {
+        console.warn(`ERROR: fetching summary failed: ${resp.status}: ${await resp.text()}`);
+        return;
+      }
+      var summary = e.querySelector('.translation-summary');
+      summary.innerHTML = await resp.text();
+
+      const parents = e.querySelector('[name="parents"]').tagify.value.map(x => x.value);
+      var list = '';
+      for (var p of parents) {
+        if (list != '') {
+          list += ', ';
+        }
+        list += p;
+      }
+      if (list != '') {
+        list = `(${list})`;
+      }
+      const span = e.querySelector('.parents-list');
+      span.innerHTML = list;
+    }
+
+    Split({
+      rowGutters: [{
+        track: 1,
+        element: document.getElementById('horizontal-gutter')
+      }]
+    });
+
+    var currentWord = null;
+    function lookupWord(e) {
+      const word = e.getAttribute('data-word-text');
+      if (word == currentWord) {
+        console.log(`Already looking up '${word}'`);
+        return;
+      }
+      currentWord = word;
+      navigateDictionaryTab();
+    }
+
+    function navigateDictionaryTab() {
+      if (currentWord == null) {
+        return;
+      }
+
+      const dicts = document.getElementById('words-dictionaries-panel');
+      const active = dicts.querySelector('.tab.active');
+      if (!active) {
+        console.log("No dictionaries active");
+        return;
+      }
+
+      const urlTmpl = active.getAttribute('data-url-tmpl');
+      const url = urlTmpl.replace('{}', currentWord);
+      if (active.src == url) {
+        console.log("Tab src is already set to target URL");
+        return;
+      }
+
+      active.src = url;
+    }
+
+    function openDictionary(e) {
+      const btn = e;
+      while (e && !e.classList.contains('tab-container')) {
+        e = e.parentNode;
+      }
+      if (!e) {
+        console.log("ERROR: not a tab")
+        return;
+      }
+      if (btn.classList.contains('active')) {
+        console.log("Selected tab already active");
+        return;
+      }
+      const tabIndex = btn.getAttribute('data-tab-index');
+      const tab = e.querySelector(`.tab[data-tab-index="${tabIndex}"]`);
+      if (!tab) {
+        console.log(`ERROR: can't find matching tab for index ${tabIndex}`);
+        return;
+      }
+      const activeBtn = e.querySelector('.tab-button.active');
+      const activeTab = e.querySelector('.tab.active');
+      if (activeBtn) { activeBtn.classList.remove('active'); }
+      if (activeTab) { activeTab.classList.remove('active'); }
+
+      btn.classList.add('active');
+      tab.classList.add('active');
+
+      navigateDictionaryTab();
+    }
+
+    function getEditorNode(e) {
+      while (e && !e.classList.contains('word-edit')) {
+        e = e.parentNode;
+      }
+      return e;
+    }
+
+    function showError(e, msg) {
+      e = e.querySelector('.error');
+      e.innerText = msg;
+      if (msg) {
+        e.style = '';
+      } else {
+        e.style = 'display: none;';
+      }
+    }
+
+    function hideError(e) {
+      showError(e, '');
+    }
+
+    var activeImageWord = null;
+
+    window.addEventListener('paste', e => {
+      if (!activeImageWord) {
+        return;
+      }
+      var fileInput = activeImageWord.querySelector('[name="image"]');
+      fileInput.files = e.clipboardData.files;
+      saveImage(fileInput);
+      activeImageWord = null;
+    });
+
+    async function deleteImage(e) {
+      e = getEditorNode(e);
+      if (!e) {
+        console.log("ERROR: element is not within a word editor");
+        return;
+      }
+
+      var id = e.getAttribute('data-word-id');
+      if (!id) {
+        console.log("Word not saved; no image to delete");
+        return;
+      }
+
+      let resp = await fetch(`/words/${id}/image`, { method: 'DELETE' });
+      if (!resp.ok && resp.status != 404) {
+        showError(e, `cannot delete image: ${await resp.text()}`);
+        return;
+      }
+
+      var img = e.querySelector('.word-image');
+      img.src = '';
+      img.style = 'display: none;';
+      hideError(e);
+      activeImageWord = e;
+    }
+
+    async function saveImage(e) {
+      const file = e.files[0];
+      if (!file) {
+        console.log("No image to save");
+        return;
+      }
+      e.value = null;
+
+      e = getEditorNode(e);
+      if (!e) {
+        console.log("ERROR: element is not within a word editor");
+        return;
+      }
+
+      var id = e.getAttribute('data-word-id');
+      if (!id) {
+        saveWord(e);
+      }
+      id = e.getAttribute('data-word-id');
+      if (!id) {
+        console.log("ERROR: could not save word");
+        return;
+      }
+
+      const data = await file.arrayBuffer();
+      if (!data) {
+        console.log(`ERROR: cannot read file '${file}'`)
+        console.log(file);
+        return;
+      }
+
+      const resp = await fetch(`/words/${id}/image`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+          'Content-Length': file.size,
+        },
+        body: data,
+      });
+      if (!resp.ok) {
+        console.log(`ERROR: failed to upload image: ${await resp.text()}`);
+        return;
+      }
+      var img = e.querySelector('.word-image');
+      img.src = `/words/${id}/image?w=150&h=100&_=${Date.now()}`;
+      img.style = '';
+    }
+
+    function changeParents(e) {
+      const parents = e;
+      e = getEditorNode(e);
+      if (!e) {
+        console.log("ERROR: element is not within a word editor");
+        return;
+      }
+      var inherit = e.querySelector('.status-inherit');
+      console.log("PARENTS:");
+      console.log(parents.value);
+      if (parents.value) {
+        inherit.disabled = false;
+      } else {
+        e.querySelector('.status-1 [name="status"]').checked = true;
+        inherit.checked = false;
+        inherit.disabled = true;
+      }
+    }
+
+    var wordsToSave = new Set();
+
+    function saveWord(e) {
+      e = getEditorNode(e);
+      if (!e) {
+        console.log("ERROR: element is not within a word editor");
+        return;
+      }
+      wordsToSave.add(e);
+    }
+
+    function processAllSaveWords() {
+      for (const e of wordsToSave) {
+        wordsToSave.delete(e);
+        processSaveWord(e);
+      }
+      setTimeout(processAllSaveWords, 100);
+    }
+    setTimeout(processAllSaveWords, 100);
+
+    async function processSaveWord(e) {
+      const id = e.getAttribute('data-word-id');
+      const text = e.getAttribute('data-word-text');
+      console.log(`Saving word '${text}' (${id})`);
+      const inherit = e.querySelector('.status-inherit').checked;
+      const status = inherit ? null : parseInt(e.querySelector('[name="status"]:checked').value);
+      const req = {
+        id: (id && parseInt(id)) || undefined,
+        text: text,
+        status: status,
+        inherit: inherit,
+        parents: e.querySelector('[name="parents"]').tagify.value.map(x => x.value),
+        pronunciation: e.querySelector('[name="pronunciation"]').value,
+        translation: e.querySelector('[name="translation"]').value,
+        tags: e.querySelector('[name="tags"]').tagify.value.map(x => x.value)
+      };
+      console.log(req);
+      if (!id) { // insert word
+        const resp = await fetch(`/api/words`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req)
+        });
+        if (!resp.ok) {
+          //console.log(`ERROR: insert failed: ${resp.status}: ${await resp.text()}`);
+          showError(e, await resp.text());
+          return;
+        }
+        const word = await resp.json();
+        e.setAttribute('data-word-id', word.id);
+        console.log(word);
+      } else { // update word
+        const body = JSON.stringify(req);
+        console.log(`Request: ${body}`);
+        const resp = await fetch(`/api/words/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: body
+        });
+        if (!resp.ok) {
+          //console.log(`ERROR: update failed: ${resp.status}: ${await resp.text()}`);
+          showError(e, await resp.text());
+          return;
+        }
+      }
+      hideError(e);
+    }
+
+    function addWord(e) {
+      const text = e.getAttribute('data-word-text');
+      if (!text) {
+        console.log("ERROR: not an add button");
+        return;
+      }
+      var tbody = e;
+      while (tbody.tagName != 'TBODY') {
+        tbody = tbody.parentNode;
+        if (tbody == null) {
+          console.warn("add button not within tbody");
+          return;
+        }
+      }
+      const tmpl = document.getElementById('word-edit-template');
+      const editor = tmpl.cloneNode(true);
+      editor.setAttribute('data-word-text', text);
+      initWordEdit(editor);
+      editor.removeAttribute('id');
+      tbody.parentNode.insertBefore(editor, tbody.nextSibling);
+      lookupWord(e);
+    }
+
+    async function deleteWord(e) {
+      e = getEditorNode(e);
+      if (!e) {
+        console.log("ERROR: element is not within a word editor");
+        return;
+      }
+      const id = e.getAttribute('data-word-id');
+      if (!id) {
+        e.remove();
+        return;
+      }
+      const resp = await fetch(`/api/words/${id}`, { method: 'DELETE' });
+      if (!resp.ok) {
+        console.log(`Failed to delete: ${resp.status}: ${await resp.text()}`);
+        return;
+      }
+      e.remove();
+    }
+
+    function initWordEdit(e) {
+      var tagInput = e.querySelector('[name="tags"]');
+      tagInput.tagify = new Tagify(tagInput, {
+        whitelist: [
+          {% for tag in all_tags %}
+            '{{tag}}'{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ]
+      });
+      var parentsInput = e.querySelector('[name="parents"]');
+      var parentsTagify = new Tagify(parentsInput, {
+        dropdown: {
+          mapValueTo: data => data.value + " (" + data.translation + ")",
+        }
+      });
+      parentsInput.tagify = parentsTagify;
+      var parentsController;
+      parentsTagify.on('input', function(e) {
+        var value = e.detail.value;
+        parentsTagify.whitelist = null;
+
+        parentsController && parentsController.abort("request superceded");
+        parentsController = new AbortController();
+        parentsTagify.loading();
+
+        fetch('/api/words-suggest?q=' + value, {signal:parentsController.signal})
+          .then(RES => RES.json())
+          .then(function(newWhitelist) {
+            parentsTagify.whitelist = newWhitelist;
+            parentsTagify.loading(false).dropdown.show(value);
+          })
+          .catch(function() {});
+      });
+      var tinyMDE = new TinyMDE.Editor({
+        textarea: e.querySelector('[name="translation"]')
+      });
+      tinyMDE.addEventListener("change", function(event) {
+        saveWord(tinyMDE.textarea);
+      })
+    }
+
+    async function addNewText(e) {
+      e.tagify.dropdown.hide();
+      for (const item of e.tagify.value) {
+        const existing = document.querySelectorAll('.word-text');
+        var exists = false;
+        for (const hdr of existing) {
+          const existingText = hdr.getAttribute('data-word-text');
+          if (existingText == item.value) {
+            exists = true;
+            break;
+          }
+        }
+        if (exists) {
+          console.log(`text ${item.value} already loaded`);
+          continue;
+        }
+        console.log(`adding text: ${item.value}`);
+
+        var hdr = document.querySelector('.word-text').cloneNode(true);
+        hdr.setAttribute('data-word-text', item.value);
+        for (var elem of hdr.querySelectorAll('[data-word-text]')) {
+          elem.setAttribute('data-word-text', item.value);
+        }
+        hdr.querySelector('.word-text-label').innerHTML = item.value;
+        const tmpl = document.getElementById('word-edit-template');
+        tmpl.parentNode.insertBefore(hdr, tmpl);
+
+        const resp = await fetch(`/api/words?text=${item.value}`);
+        if (!resp.ok) {
+          console.warn(`ERROR: fetching summary failed: ${resp.status}: ${await resp.text()}`);
+          continue;
+        }
+        const words = await resp.json();
+        
+        for (const word of words) {
+          const editor = tmpl.cloneNode(true);
+          editor.removeAttribute('id');
+          editor.querySelector('[name="parents"]').value = word.parents.join(',');
+          if (word.pronunciation) {
+            editor.querySelector('[name="pronunciation"]').value = word.pronunciation;
+          }
+          var inheritRadio = editor.querySelector('input.status-inherit');
+          if (word.inherit) {
+            inheritRadio.checked = true;
+          } else {
+            var radio = editor.querySelector(`.status-${word.status} input`);
+            radio.checked = true;
+          }
+          if (word.parents) {
+            inheritRadio.disabled = false;
+          } else {
+            inheritRadio.disabled = true;
+          }
+          editor.querySelector('[name="translation"]').value = word.translation;
+          editor.querySelector('[name="tags"]').value = word.tags.join(',');
+          var img = editor.querySelector('.word-image');
+          if (word.image_file) {
+            img.src = `/words/${word.id}/image?w=150&h=100`;
+            img.removeAttribute('style');
+          } else {
+            img.setAttribute('style', 'display: none;');
+          }
+
+          editor.setAttribute('data-word-text', item.value);
+          editor.setAttribute('data-word-id', word.id);
+          initWordEdit(editor);
+          await toggleRow(editor.querySelector('.word-edit-toggle')); // collapse
+
+          tmpl.parentNode.insertBefore(editor, tmpl);
+        }
+        
+      }
+      e.tagify.removeAllTags();
+    }
+
+    <!-- $(function() { -->
+      var container = document.getElementById('words-edit');
+      for (var e of container.getElementsByClassName('word-edit')) {
+        if (e.getAttribute('id') != "word-edit-template") {
+          initWordEdit(e);
+        }
+      }
+      var newTextInput = document.getElementById('new-text');
+      var newTextTagify = new Tagify(newTextInput, {
+        dropdown: {
+          mapValueTo: data => data.value + " (" + data.translation + ")",
+        }
+      });
+      newTextInput.tagify = newTextTagify;
+      var newTextController;
+      newTextTagify.on('input', function(e) {
+        var value = e.detail.value;
+        newTextTagify.whitelist = null;
+
+        newTextController && newTextController.abort("request superceded");
+        newTextController = new AbortController();
+        newTextTagify.loading();
+
+        fetch('/api/words-suggest?q=' + value, {signal:newTextController.signal})
+          .then(RES => RES.json())
+          .then(function(newWhitelist) {
+            newTextTagify.whitelist = newWhitelist;
+            newTextTagify.loading(false).dropdown.show(value);
+          })
+          .catch(function() {});
+      });
+    <!-- }); --> 
+    window.addEventListener('paste', e => {
+      document.querySelector('[name="image"]').files = e.clipboardData.files;
+    });
+  </script>
+{% endblock %}

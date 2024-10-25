@@ -1,0 +1,51 @@
+[package]
+name = "lit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anki_bridge = { version = "0.8.0", features = ["reqwest_async"] }
+anyhow = "1.0.90"
+anymap = "0.12.1"
+async-stream = "0.3.6"
+async-trait = "0.1.83"
+axum = { version = "0.7.7", features = ["json", "macros"] }
+axum-extra = { version = "0.9.4", features = ["typed-header"] }
+axum-range = "0.4.0"
+chrono = "0.4.38"
+clap = { version = "4.5.20", features = ["derive"] }
+csv = "1.3.0"
+dialoguer = "0.11.0"
+figment = { version = "0.10.19", features = ["toml"] }
+futures = "0.3.31"
+genanki-rs = { git = "https://github.com/bwkimmel/genanki-rs.git", rev = "791686c0b20f19879f0f2f22f7338b8d4b1e910e" }
+glob = "0.3.1"
+image = "0.25.4"
+indicatif = "0.17.8"
+itertools = "0.13.0"
+notmecab = "0.5.1"
+pprof = { version = "0.14.0", features = ["flamegraph"] }
+pulldown-cmark = "0.12.2"
+regex = "1.11.0"
+reqwest = "0.12.10"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.132"
+serde_qs = "0.13.0"
+serde_repr = "0.1.19"
+serde_with = "3.11.0"
+sha2 = "0.10.8"
+sqlx = { version = "0.8.2", features = ["sqlite", "runtime-tokio", "chrono"] }
+subtp = { git = "https://github.com/bwkimmel/subtp.git", rev = "0b86498d2e808c69bd62de47606ea541edf42e6b" }
+tempfile = "3.14.0"
+tera = "1.20.0"
+termion = "4.0.3"
+tokio = { version = "1.41.0", features = ["full"] }
+tokio-util = { version = "0.7.12", features = ["io"] }
+topological-sort = "0.2.2"
+tower-http = { version = "0.6.1", features = ["fs"] }
+unicode-segmentation = "1.12.0"
+url = "2.5.2"
+urlencoding = "2.1.3"
+youtube_dl = { git = "https://github.com/bwkimmel/youtube-dl-rs.git", rev = "0e7ec2dc23928e4a7f38b685c25ff36f9272e480", features = ["tokio"] }

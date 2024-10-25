@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+{% set config = global_config() %}
+<html lang="en">
+  <head>
+    {% block head %}
+    <meta charset="utf-8">
+    <title>{% block title %}{% endblock title %} - LIT</title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <script src="/static/lit.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <style>
+      html, body {
+        height: 100%;
+        overflow: clip;
+        margin: 0;
+      }
+      #outer {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+        grid-template-areas:
+          "banner"
+          "main";
+        width: 100%;
+        height: 100vh;
+        overflow: clip;
+      }
+      #banner {
+        display: none;
+        grid-area: banner;
+        width: 100%;
+        min-height: 0;
+        max-height: fit-content;
+        background-color: red;
+        color: white;
+        text-align: center;
+        vertical-align: middle;
+      }
+      #banner.active {
+        display: block;
+      }
+      #main {
+        grid-area: main;
+        min-height: 0;
+        height: auto;
+        width: 100%;
+      }
+    </style>
+    {% endblock head %}
+  </head>
+  <body>
+    <div id="outer">
+      {% if config.banner %}
+        <div id="banner">
+          {{ config.banner }}
+        </div>
+      {% endif %}
+      <div id="main">
+        {% block content %}{% endblock content %}
+      </div>
+    </div>
+    {% if config.banner %}
+    <script>
+      if (window.top == window.self) {
+        document.getElementById('banner').classList.add('active');
+      }
+    </script>
+    {% endif %}
+  </body>
+</html>

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Find words{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css">
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+  <script src="//cdn.datatables.net/plug-ins/2.1.8/features/scrollResize/dataTables.scrollResize.min.js"></script>
+{% endblock head %}
+{% block content %}
+  <div class="full-page-table-wrapper">
+    <table id="words" class="display stripe" style="width:100%;">
+      <thead>
+        <th>word</th>
+        <th>parents</th>
+        <th>translation</th>
+        <th>tags</th>
+        <th>status</th>
+        <th>added</th>
+      </thead>
+    </table>
+  </div>
+  <script>
+    $('#words').DataTable({
+      ajax: '/api/words-dt',
+      scrollResize: true,
+      scrollY: 100,
+      serverSide: true,
+      processing: true,
+      columns: [
+        {
+          data: 'text',
+          render: function(data, type, row) {
+            if (type === 'display') {
+              console.log(row);
+              return '<a href="/define/' + data + '/edit">' + data + '</a>'
+            }
+            return data;
+          }
+        },
+        { data: 'parents' },
+        { data: 'translation' },
+        { data: 'tags' },
+        { data: 'status' },
+        { data: 'added' }
+      ]
+    });
+    $.fn.dataTable.ext.errMode = 'throw';
+  </script>
+{% endblock content %}

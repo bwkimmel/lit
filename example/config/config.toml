@@ -1,0 +1,58 @@
+# Directory to contain user data (book audio, word images). This may be
+# absolute, or relative to this file.
+userdata = "userdata"
+port = 5080
+lang = "ko"
+
+# Banner to display at the top of the reader. Useful, for example, to let you
+# know if you're using a different instance, such as your development instance.
+#
+#[template]
+#banner = "development version"
+
+[display]
+# Tags to hide from word tooltips (they will still appear when editing a word).
+hide_tags = [
+  "anki",
+  "anki:force",
+  "noanki",
+  "not:topik1",
+  "not:topik2",
+  "not:topik1v",
+  "not:topik2v",
+]
+
+[database]
+# Path to database. This may be absolute, or relative to this file.
+path = "lit.db"
+max_connections = 100
+
+# Dictionary websites to include for word lookup. Use "{}" as a placeholder for
+# the word. The "name" field is optional. If not specified, the domain name from
+# the URL will be used.
+[[dictionaries]]
+url = "https://korean.dict.naver.com/koendict/#/search?query={}"
+
+[[dictionaries]]
+url = "https://en.dict.naver.com/#/search?query={}"
+
+[[dictionaries]]
+url = "http://dic.daum.net/search.do?q={}&dic=eng"
+
+[[dictionaries]]
+url = "https://www.verbix.com/webverbix/korean/{}"
+
+[[dictionaries]]
+name = "Google Images"
+url = "https://www.google.com/search?tbm=isch&as_q={}"
+
+# Mecab dictionary files for Korean. You can build these from here:
+#   https://bitbucket.org/eunjeon/mecab-ko-dic/src/master/
+# Or download my prebuilt dictionary files from here:
+#   https://www.dropbox.com/scl/fo/4dpe9curznfh58yicvydz/APtTAtu51f4qAkiMc5RUDp4?rlkey=q6cap8mhpmh73cr5dy7591vqy&st=8is8hric&dl=0
+# The paths may be absolute, or relative to this file.
+[mecab]
+sysdic = "../mecab_ko_dic/sys.dic"
+unkdic = "../mecab_ko_dic/unk.dic"
+matrix = "../mecab_ko_dic/matrix.bin"
+char = "../mecab_ko_dic/char.bin"

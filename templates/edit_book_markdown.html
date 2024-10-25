@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <script src="https://unpkg.com/tiny-markdown-editor/dist/tiny-mde.min.js"></script>
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="https://unpkg.com/tiny-markdown-editor/dist/tiny-mde.min.css"
+  />
+{% endblock %}
+{% block content %}
+  <form>
+    <textarea id="content" name="content">{{content}}</textarea>
+  </form>
+  <script>
+    <!-- $(function() { -->
+      var tinyMDE = new TinyMDE.Editor({
+        textarea: document.getElementById('content')
+      });
+      tinyMDE.addEventListener("change", function(event) {
+        // TODO
+      });
+    <!-- }); --> 
+  </script>
+{% endblock content %}
