@@ -29,6 +29,8 @@ looking for something more stable, please consider using
   ```
   cargo run --release --bin add_book -- --help
   ```
+  Alternatively, you can import Youtube videos that have Korean subtitles by
+  navigating to `http://localhost:5080/video?url=<YOUTUBE_WATCH_URL>`.
 - Run the reader:
   ```
   ENV=prod
