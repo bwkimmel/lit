@@ -2,8 +2,8 @@
 
 This is a very rough language-learning reader application, based on
 [Lute](https://github.com/LuteOrg/lute-v3), that supports some key features I
-found useful for studying Korean in particular, but which were difficult to
-contribute upstream.
+found useful for studying Korean in particular, but which would have been
+difficult to integrate into an upstream contribution.
 
 ## Setup
 
