@@ -5,6 +5,10 @@ This is a very rough language-learning reader application, based on
 found useful for studying Korean in particular, but which would have been
 difficult to integrate into an upstream contribution.
 
+This is currently unpolished and should be considered "early alpha". If you're
+looking for something more stable, please consider using
+[Lute](https://github.com/LuteOrg/lute-v3).
+
 ## Setup
 
 - Create a directory for your LIT database. I use "./data/prod" for my
