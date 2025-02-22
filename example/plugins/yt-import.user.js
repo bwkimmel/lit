@@ -94,6 +94,4 @@
 
     setTimeout(addLITLinks, 100);
     setTimeout(tryAddTitleLink, 100);
-
-    // Your code here...
 })();
