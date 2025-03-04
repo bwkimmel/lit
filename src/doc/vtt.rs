@@ -10,17 +10,30 @@ use super::{Document, Parser, Renderer, SnippetRenderer};
 
 pub struct VttParser;
 
-#[derive(Clone, Debug)]
-struct CueTime {
-    seconds: u32,
-    millis: u16,
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CueTime {
+    pub seconds: u32,
+    pub millis: u16,
+}
+
+impl CueTime {
+    pub fn to_seconds(&self) -> f64 {
+        self.seconds as f64 + self.millis as f64 / 1000.0
+    }
+
+    pub fn from_seconds(sec: f64) -> Self {
+        let ms = (sec * 1000.0) as u64;
+        let seconds = (ms / 1000) as u32;
+        let millis = (ms % 1000) as u16;
+        Self { seconds, millis }
+    }
 }
 
 #[derive(Debug)]
-struct Cue {
-    start: CueTime,
-    end: CueTime,
-    text_range: Range<usize>,
+pub struct Cue {
+    pub start: CueTime,
+    pub end: CueTime,
+    pub text_range: Range<usize>,
 }
 
 fn is_word_start(s: &str, i: usize) -> bool {
@@ -150,10 +163,6 @@ fn fmt_cue_time(t: &CueTime) -> String {
     str
 }
 
-fn cue_seconds(t: &CueTime) -> f64 {
-    t.seconds as f64 + t.millis as f64 / 1000.0
-}
-
 #[async_trait]
 impl<'a, T: SnippetRenderer + Send + Sync> Renderer for VttHtmlRenderer<'a, T> {
     async fn render_html(&self, doc: &Document) -> Result<String> {
@@ -165,9 +174,9 @@ impl<'a, T: SnippetRenderer + Send + Sync> Renderer for VttHtmlRenderer<'a, T> {
         let mut html = String::new();
         for cue in cues {
             let mut ctx = tera::Context::new();
-            ctx.insert("prev_end", &cue_seconds(&prev_end));
-            ctx.insert("start", &cue_seconds(&cue.start));
-            ctx.insert("end", &cue_seconds(&cue.end));
+            ctx.insert("prev_end", &prev_end.to_seconds());
+            ctx.insert("start", &cue.start.to_seconds());
+            ctx.insert("end", &cue.end.to_seconds());
             ctx.insert("prev_end_fmt", &fmt_cue_time(&prev_end));
             ctx.insert("start_fmt", &fmt_cue_time(&cue.start));
             ctx.insert("end_fmt", &fmt_cue_time(&cue.end));

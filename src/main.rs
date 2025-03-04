@@ -1,4 +1,4 @@
-use std::{collections::{BTreeMap, HashMap}, io::Cursor, net::{Ipv4Addr, SocketAddrV4}, str::FromStr, sync::{Arc, LazyLock}};
+use std::{cmp::Ordering, collections::{BTreeMap, HashMap}, io::Cursor, net::{Ipv4Addr, SocketAddrV4}, str::FromStr, sync::{Arc, LazyLock}};
 
 use anyhow::anyhow;
 use axum::{async_trait, body::{Body, Bytes}, extract::{FromRequestParts, Path, Query, State}, http::{header::CONTENT_TYPE, HeaderMap, StatusCode}, response::{Html, IntoResponse, Redirect}, routing::{get, patch, post}, Form, Json, Router};
@@ -15,7 +15,7 @@ use tokio::{fs::File, net::TcpListener};
 use tokio_util::io::ReaderStream;
 use tower_http::services::ServeDir;
 
-use lit::{bad_req, books::{Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{KoreanParser, Segment}, must, not_found, status, time, Error, Result};
+use lit::{bad_req, books::{Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
 use url::Url;
 use youtube_dl::YoutubeDl;
 
@@ -32,6 +32,7 @@ struct Context {
     books: Books,
     dict: Dictionary,
     templates: Arc<Mutex<Tera>>,
+    docs: Arc<Mutex<HashMap<i64, Document>>>,
 }
 
 #[tokio::main]
@@ -58,7 +59,8 @@ async fn main() -> Result<()> {
     tera.register_filter("firstline", firstline_filter);
     tera.register_function("global_config", config.template.clone());
     let templates = Arc::new(Mutex::new(tera));
-    let ctx = Context { config, korean, books, dict, templates };
+    let docs = Arc::new(Mutex::new(HashMap::new()));
+    let ctx = Context { config, korean, books, dict, templates, docs };
     let app = Router::new()
         .route("/", get(|| async { "Hello, world!" }))
         .route("/import_video", get(get_import_video).post(post_import_video))
@@ -78,8 +80,11 @@ async fn main() -> Result<()> {
         .route("/api/books-dt", get(books_dt))
         .route("/api/words", get(list_words).post(post_word))
         .route("/api/words/:id", get(get_word).put(put_word).delete(delete_word))
+        .route("/api/books", get(list_books))
         .route("/api/books/:id", patch(patch_book))
         .route("/api/books/:id/read", post(post_book_read))
+        .route("/api/books/:id/cues/:ts", get(get_book_cues))
+        .route("/api/books/:id/words/:offset", get(get_book_word))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(Arc::new(ctx));
     let addr = SocketAddrV4::new(Ipv4Addr::from_str("0.0.0.0")?, port);
@@ -680,6 +685,281 @@ async fn delete_word(
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     ctx.dict.delete_word(id).await
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct BookSearch {
+    url: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookResult {
+    id: i64,
+}
+
+async fn list_books(
+    State(ctx): State<Arc<Context>>,
+    Query(search): Query<BookSearch>,
+) -> Result<impl IntoResponse> {
+    let books = ctx.books.find_book_ids_by_url(&search.url).await?
+        .into_iter()
+        .map(|id| BookResult { id })
+        .collect_vec();
+    Ok(Json(books))
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookCueWord {
+    offset: usize,
+    min_status: WordStatus,
+    max_status: WordStatus,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookCueToken {
+    text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    word: Option<BookCueWord>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookCueLine {
+    tokens: Vec<BookCueToken>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookCue {
+    start: f64,
+    end: f64,
+    lines: Vec<BookCueLine>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookCues {
+    cues: Vec<BookCue>,
+}
+
+fn resolve_status(wi: &WordInfo) -> (WordStatus, WordStatus) {
+    use WordStatus::*;
+    let (mut min, mut max) = (Unknown, Unknown);
+    for (a, b) in wi.seg.words.iter().flat_map(|w| w.resolved_status) {
+        min = match min {
+            Unknown => a,
+            _ => min.min(a),
+        };
+        max = match max {
+            Unknown => b,
+            _ => max.max(b),
+        }
+    }
+    (min, max)
+}
+
+fn render_book_cue(doc: &Document, cue: &Cue) -> Result<BookCue> {
+    let Some(words) = doc.info::<BTreeMap<usize, WordInfo>>() else {
+        return status_msg(StatusCode::INTERNAL_SERVER_ERROR, "no word info");
+    };
+    let mut lines = vec![];
+    let mut tokens = vec![];
+    let mut pos = cue.text_range.start;
+    for (start, word) in words.range(cue.text_range.clone()) {
+        if *start > pos {
+            let text = doc.text[pos..*start].to_string() + "\0";
+            for (i, line) in text.lines().enumerate() {
+                let line = line.strip_suffix("\0").unwrap_or(line);
+                if i > 0 {
+                    lines.push(BookCueLine { tokens });
+                    tokens = vec![];
+                }
+                if line.is_empty() {
+                    continue;
+                }
+                tokens.push(BookCueToken {
+                    text: line.to_string(),
+                    word: None,
+                });
+            }
+        }
+        pos = word.seg.range.end;
+        let text = word.seg.text.clone();
+        let (min_status, max_status) = resolve_status(word);
+        let offset = *start;
+        let word = Some(BookCueWord { offset, min_status, max_status });
+        tokens.push(BookCueToken { text, word });
+    }
+    if pos < cue.text_range.end {
+        let text = doc.text[pos..cue.text_range.end].to_string() + "\0";
+        for (i, line) in text.lines().enumerate() {
+            let line = line.strip_suffix("\0").unwrap_or(line);
+            if i > 0 {
+                lines.push(BookCueLine { tokens });
+                tokens = vec![];
+            }
+            if line.is_empty() {
+                continue;
+            }
+            tokens.push(BookCueToken {
+                text: line.to_string(),
+                word: None,
+            });
+        }
+    }
+    if !tokens.is_empty() {
+        lines.push(BookCueLine { tokens });
+    }
+    Ok(BookCue {
+        start: cue.start.to_seconds(),
+        end: cue.end.to_seconds(),
+        lines,
+    })
+}
+
+async fn get_book_cues(
+    State(ctx): State<Arc<Context>>,
+    Path((id, ts)): Path<(i64, f64)>,
+) -> Result<impl IntoResponse> {
+    let mut docs = ctx.docs.lock().await;
+
+    let doc = match docs.get(&id) {
+        Some(doc) => doc,
+        None => {
+            let book = ctx.books.find_book_by_id(id).await?;
+            if book.content_type != "text/vtt" {
+                return bad_req("invalid book type");
+            }
+            let doc = VttParser.parse_document(&book.content)?;
+            let doc = analyze_document(&ctx, doc).await?;
+            docs.insert(id, doc);
+            docs.get(&id).unwrap()
+        },
+    };
+
+    let Some(cues) = doc.info::<Vec<Cue>>() else {
+        return status_msg(StatusCode::INTERNAL_SERVER_ERROR, "no cues");
+    };
+
+    let time = CueTime::from_seconds(ts);
+    let result = cues.binary_search_by(|cue| {
+        if cue.end < time {
+            Ordering::Less
+        } else if cue.start > time {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    });
+    let (min, max) = match result {
+        Ok(i) => (i.saturating_sub(1), i + 1),
+        Err(i) => (i.saturating_sub(1), i),
+    };
+    let max = max.min(cues.len() - 1);
+
+    let cues = cues[min..=max].iter()
+        .map(|cue| render_book_cue(doc, cue))
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(Json(BookCues { cues }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookWordDef {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    pub text: String,
+    pub status: Option<WordStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pronunciation: Option<String>,
+    pub translation: String,
+    pub translation_html: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub parents: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_file: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_status: Option<(WordStatus, WordStatus)>,
+    pub inherit: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug: Option<String>,
+}
+
+impl From<Word> for BookWordDef {
+    fn from(value: Word) -> Self {
+        let parser = pulldown_cmark::Parser::new(&value.translation);
+        let mut translation_html = String::new();
+        pulldown_cmark::html::push_html(&mut translation_html, parser);
+        Self {
+            id: value.id,
+            text: value.text,
+            status: value.status,
+            pronunciation: value.pronunciation,
+            translation: value.translation,
+            translation_html,
+            tags: value.tags,
+            parents: value.parents,
+            image_file: value.image_file,
+            resolved_status: value.resolved_status,
+            inherit: value.inherit,
+            debug: value.debug,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct BookWord {
+    offset: usize,
+    text: String,
+    min_status: WordStatus,
+    max_status: WordStatus,
+    defs: Vec<BookWordDef>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    deps: Vec<BookWordDef>,
+}
+
+async fn get_book_word(
+    State(ctx): State<Arc<Context>>,
+    Path((id, offset)): Path<(i64, usize)>,
+) -> Result<impl IntoResponse> {
+    let mut docs = ctx.docs.lock().await;
+
+    let doc = match docs.get(&id) {
+        Some(doc) => doc,
+        None => {
+            let book = ctx.books.find_book_by_id(id).await?;
+            if book.content_type != "text/vtt" {
+                return bad_req("invalid book type");
+            }
+            let doc = VttParser.parse_document(&book.content)?;
+            let doc = analyze_document(&ctx, doc).await?;
+            docs.insert(id, doc);
+            docs.get(&id).unwrap()
+        },
+    };
+
+    let Some(words) = doc.info::<BTreeMap<usize, WordInfo>>() else {
+        return status_msg(StatusCode::INTERNAL_SERVER_ERROR, "no word info");
+    };
+
+    let word_info = must(words.get(&offset))?;
+    let (min_status, max_status) = resolve_status(word_info);
+
+    let word_ids = word_info.seg.words.iter().filter_map(|w| w.id).collect_vec();
+
+    let word = BookWord {
+        offset,
+        text: word_info.seg.text.clone(),
+        defs: word_info.seg.words.clone().into_iter().map(|w| w.into()).collect_vec(),
+        deps: word_info.dict.values().flatten()
+            .filter(|w| w.id.map(|id| !word_ids.contains(&id)).unwrap_or(false))
+            .cloned()
+            .map(|w| w.into())
+            .collect_vec(),
+        min_status, max_status,
+    };
+
+    Ok(Json(word))
 }
 
 #[derive(Clone, Debug, Deserialize)]

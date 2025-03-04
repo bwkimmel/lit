@@ -1,0 +1,24 @@
+{
+  "name": "LIT Captions",
+  "description": "Add LIT captions to videos",
+  "version": "1.0",
+  "manifest_version": 3,
+  "action": {
+    "default_popup": "lit.html",
+    "default_icon": "lit.png"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "scripts/deps/popper.js",
+        "scripts/deps/tippy.js",
+        "scripts/content.js"
+      ],
+      "css": ["lit.css"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "host_permissions": [
+    "http://localhost:5080/*"
+  ]
+}
