@@ -40,6 +40,35 @@ async function onPlay() {
   }
 }
 
+var wasPausedBeforeCueHover = false;
+var cueHovering = false;
+var cueHoveringTimeout = null;
+
+async function onCueMouseOver(e) {
+  if (cueHoveringTimeout) {
+    clearTimeout(cueHoveringTimeout);
+    cueHoveringTimeout = null;
+  }
+  if (cueHovering) {
+    return;
+  }
+  cueHovering = true;
+  wasPausedBeforeCueHover = video.paused;
+  video.pause();
+}
+
+async function onCueMouseOut(e) {
+  if (cueHoveringTimeout) {
+    clearTimeout(cueHoveringTimeout);
+  }
+  cueHoveringTimeout = setTimeout(function() {
+    cueHovering = false;
+    if (!wasPausedBeforeCueHover) {
+      video.play();
+    }
+  }, 250);
+}
+
 async function update() {
   if (!video) { return; }
   const t = video.currentTime;
@@ -89,6 +118,8 @@ async function update() {
     } else {
       div.classList.add('lit-prev-cue');
     }
+    div.addEventListener('mouseover', onCueMouseOver);
+    div.addEventListener('mouseout', onCueMouseOut);
     
     for (let i = 0; i < cue.lines.length; i++) {
       const line = cue.lines[i];
