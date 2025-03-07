@@ -15,18 +15,50 @@
   --lit-gutter-color: #60686c;
 }
 
-#lit-term-panel {
+#lit-panel-container {
+  all: unset;
   z-index: 99999;
   position: fixed;
   top: 0;
-  left: 70vw;
+  left: 0;
   right: 0;
   bottom: 0;
-  background-color: blue;
   display: none;
+  background-color: transparent;
+  pointer-events: none;
+}
+
+.lit-grid-container {
+  display: grid;
+  /* grid-template-columns: 2fr 5px 1fr; */
+  grid-template-rows: 1fr;
+  grid-template-areas:
+    "a v b";
+  width: 100%;
+  height: 100%;
+  overflow: clip;
+  pointer-events: none;
+}
+
+#lit-panel {
+  grid-area: b;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+}
+
+#lit-panel>iframe {
+  border: none;
+  width: 100%;
+  height: 100%;
+}
+
+#lit-panel-container.lit-show {
+  display: block;
 }
 
 .lit-tooltiptext {
+  z-index: 999999;
   font-weight: normal;
   color: #fff;
   border-radius: 6px;
@@ -151,10 +183,78 @@ ul.lit-word-parents>li {
   list-style-type: unset;
 }
 
-.word-translation ul {
+.lit-word-translation ul {
   padding-left: 1em;
 }
 
-.word-translation ul>li {
+.lit-word-translation ul>li {
   list-style-type: unset;
+}
+
+.lit-word-translation ol {
+  padding-left: 1em;
+}
+
+.lit-word-translation ol>li {
+  list-style-type: unset;
+}
+
+.lit-gutter {
+  background-color: var(--lit-gutter-color);
+  width: 100%;
+  height: 100%;
+  position: relative;
+  pointer-events: auto;
+}
+
+#lit-vertical-gutter {
+  cursor: col-resize;
+  grid-area: v;
+}
+
+#lit-panel-background {
+  width: 100%;
+  height: 100%;
+  grid-area: a;
+  background-color: transparent;
+  pointer-events: none;
+}
+
+#lit-toggle-fullscreen {
+  bottom: 60px;
+}
+
+#lit-close {
+  bottom: 30px;
+}
+
+.lit-gutter-button {
+  position: absolute;
+  bottom: 30px;
+  width: 11px;
+  right: 100%;
+  font-size: 8pt;
+  background-color: var(--lit-gutter-color);
+  padding: 4px 1px 5px 2px;
+  cursor: pointer;
+  border-radius: 5px 0 0 5px;
+}
+
+#lit-panel-container.lit-fullscreen .lit-gutter-button {
+  right: unset;
+  left: 100%;
+  padding: 4px 2px 5px 2px;
+  border-radius: 0 5px 5px 0;
+}
+
+#lit-panel-container.lit-fullscreen #lit-panel-background {
+  width: 0;
+}
+
+#lit-panel-container.lit-fullscreen #lit-vertical-gutter {
+  width: 0;
+}
+
+#lit-panel-container.lit-fullscreen #lit-panel {
+  width: 100vw;
 }
