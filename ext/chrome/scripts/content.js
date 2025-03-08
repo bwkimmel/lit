@@ -313,7 +313,7 @@ async function fetchCues(t) {
 }
 
 async function setupVideoPage(url) {
-  const resp = await fetch(`http://localhost:5080/api/books?url=${url}`);
+  const resp = await fetch(`http://localhost:5080/api/books?url=${encodeURIComponent(canonicalizeURL(url))}`);
   if (!resp.ok) {
     console.warn(`Could not query book for URL ${url}: ${await resp.body()}`);
     return false;

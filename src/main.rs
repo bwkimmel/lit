@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, collections::{BTreeMap, HashMap}, io::Cursor, net::{Ipv4Addr, SocketAddrV4}, str::FromStr, sync::{Arc, LazyLock}};
 
 use anyhow::anyhow;
-use axum::{async_trait, body::{Body, Bytes}, extract::{FromRequestParts, Path, Query, State}, http::{header::CONTENT_TYPE, HeaderMap, StatusCode}, response::{Html, IntoResponse, Redirect}, routing::{get, patch, post}, Form, Json, Router};
+use axum::{async_trait, body::{Body, Bytes}, extract::{FromRequestParts, Path, Query, State}, http::{header::CONTENT_TYPE, HeaderMap, StatusCode}, response::{Html, IntoResponse, Redirect}, routing::{get, post}, Form, Json, Router};
 use axum_extra::{headers::Range, TypedHeader};
 use axum_range::{KnownSize, Ranged};
 use chrono::{TimeZone, Utc};
@@ -15,7 +15,7 @@ use tokio::{fs::File, net::TcpListener};
 use tokio_util::io::ReaderStream;
 use tower_http::services::ServeDir;
 
-use lit::{bad_req, books::{Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
+use lit::{bad_req, books::{Book, Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
 use url::Url;
 use youtube_dl::YoutubeDl;
 
@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
         .route("/api/words", get(list_words).post(post_word))
         .route("/api/words/:id", get(get_word).put(put_word).delete(delete_word))
         .route("/api/books", get(list_books))
-        .route("/api/books/:id", patch(patch_book))
+        .route("/api/books/:id", get(get_book).patch(patch_book))
         .route("/api/books/:id/read", post(post_book_read))
         .route("/api/books/:id/cues/:ts", get(get_book_cues))
         .route("/api/books/:id/words/:offset", get(get_book_word))
@@ -693,19 +693,58 @@ struct BookSearch {
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct BookResult {
+struct BookSummary {
     id: i64,
+    slug: String,
+    title: String,
+    content_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    audio_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    published: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_read: Option<String>,
+}
+
+impl From<Book> for BookSummary {
+    fn from(book: Book) -> Self {
+        let id = book.id;
+        Self {
+            id,
+            slug: book.slug,
+            title: book.title,
+            content_type: book.content_type,
+            url: book.url,
+            audio_url: book.audio_file.map(|_| format!("/books/{id}/audio")),
+            published: book.published.map(|dt| dt.format("%+").to_string()),
+            last_read: book.last_read.map(|dt| dt.format("%+").to_string()),
+        }
+    }
 }
 
 async fn list_books(
     State(ctx): State<Arc<Context>>,
     Query(search): Query<BookSearch>,
 ) -> Result<impl IntoResponse> {
-    let books = ctx.books.find_book_ids_by_url(&search.url).await?
-        .into_iter()
-        .map(|id| BookResult { id })
-        .collect_vec();
+    let ids = ctx.books.find_book_ids_by_url(&search.url).await?;
+    let mut books = vec![];
+    for id in ids {
+        let book = ctx.books.find_book_by_id(id).await?;
+        let summary: BookSummary = book.into();
+        books.push(summary);
+    }
     Ok(Json(books))
+}
+
+async fn get_book(
+    State(ctx): State<Arc<Context>>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    let book = ctx.books.find_book_by_id(id).await?;
+    let summary: BookSummary = book.into();
+    Ok(Json(summary))
 }
 
 #[derive(Clone, Debug, Serialize)]

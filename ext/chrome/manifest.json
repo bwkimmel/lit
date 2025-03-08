@@ -7,9 +7,13 @@
     "default_popup": "lit.html",
     "default_icon": "lit.png"
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "js": [
+        "shared.js",
         "scripts/deps/split-grid.js",
         "scripts/deps/popper.js",
         "scripts/deps/tippy.js",
@@ -18,6 +22,9 @@
       "css": ["lit.css"],
       "matches": ["<all_urls>"]
     }
+  ],
+  "permissions": [
+    "tabs"
   ],
   "host_permissions": [
     "http://localhost:5080/*"
