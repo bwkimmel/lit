@@ -23,17 +23,18 @@ looking for something more stable, please consider using
   as your database.
 - Download or build the Korean Mecab dictionary files (see instructions in the
   `[mecab]` section of `config.toml`).
+- Optionally install the Chrome extension under `ext/chrome`. This will overlay
+  the reader onto any video page that has been imported.
 - Import some books. There is a CLI tool, `src/bin/add_book.rs`. See
   `example/scripts/import_youtube.py` for example usage, or run the following
   to see a list of all options:
   ```
   cargo run --release --bin add_book -- --help
   ```
-  Alternatively, you can import Youtube videos that have Korean subtitles by
-  navigating to `http://localhost:5080/video?url=<YOUTUBE_WATCH_URL>`. There is
-  also a [Tampermonkey](https://www.tampermonkey.net/) script in
-  `example/plugins/yt-import.user.js` that will add links to Youtube to import
-  videos.
+  Alternatively, you can import Youtube videos by navigating to
+  `http://localhost:5080/video?url=<YOUTUBE_WATCH_URL>` (the reader must be
+  running for this to work). The Chrome extension will also add options to the
+  context menu to import videos.
 - Run the reader:
   ```
   ENV=prod
