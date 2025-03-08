@@ -1,0 +1,52 @@
+:root {
+  --button-color: #8acae6;
+  --button-color-hover: #219ebc;
+  --button-text-color: #023047;
+  --button-text-color-hover: var(--button-text-color);
+}
+
+body {
+  width: 20rem;
+}
+
+ul {
+  list-style-type: none;
+  padding-inline-start: 0;
+  margin: 1rem 0;
+}
+
+li {
+  padding: 0.25rem;
+}
+li:nth-child(odd) {
+  background: #80808030;
+}
+li:nth-child(even) {
+  background: #ffffff;
+}
+
+h3,
+p {
+  margin: 0;
+}
+
+h3 {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.unread .last-read-ctr { display: none; }
+.button {
+  cursor: pointer;
+  background-color: var(--button-color);
+  color: var(--button-text-color);
+  padding: 2px;
+  border-radius: 2px;
+  min-width: 1em;
+  text-align: center;
+  text-decoration: none;
+}
+.button:hover {
+  background-color: var(--button-color-hover);
+  color: var(--button-text-color-hover);
+}

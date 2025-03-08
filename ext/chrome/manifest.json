@@ -8,7 +8,7 @@
     "64": "lit.png"
   },
   "action": {
-    "default_popup": "lit.html",
+    "default_popup": "popup/popup.html",
     "default_icon": "lit.png"
   },
   "background": {

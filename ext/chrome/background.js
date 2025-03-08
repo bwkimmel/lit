@@ -36,8 +36,8 @@ chrome.runtime.onInstalled.addListener(function() {
   });
 });
 
-chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-  fetch(`http://localhost:5080/api/books?url=${encodeURIComponent(canonicalizeURL(tab.url))}`)
+function updateBadge(tabId, url) {
+  fetch(`http://localhost:5080/api/books?url=${encodeURIComponent(canonicalizeURL(url))}`)
     .then((resp) => resp.json())
     .then((books) => {
       if (books.length == 0) {
@@ -63,4 +63,12 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
     .catch((error) => {
       console.warn(`Failed to fetch books: ${error}`);
     })
+}
+
+chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
+  updateBadge(tabId, tab.url);
+});
+
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  updateBadge(request.tabId, request.url);
 });
