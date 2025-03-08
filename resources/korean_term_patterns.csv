@@ -1658,3 +1658,4 @@ pattern,translation,tags,parents,output
 */VA/*+ㄹ/ETM/*+때/NNG/*+도/JX/*,even when ~; also when ~,,때
 */VA/*+었/EP/*+다면요/EF/*,if one supposes was ~
 */NN/*+이/VCP/*+었/EP/*+다는/ETM/*,said that was a ~
+*/VV/*+을걸/EF/*,will be ~ing,noun
