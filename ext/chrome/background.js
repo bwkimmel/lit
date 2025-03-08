@@ -1,5 +1,41 @@
 importScripts('./shared.js');
 
+chrome.contextMenus.onClicked.addListener(function(info) {
+  switch (info.menuItemId) {
+    case "link": {
+      const url = canonicalizeURL(info.linkUrl);
+      chrome.tabs.update({
+        url: `http://localhost:5080/video?url=${encodeURIComponent(url)}`
+      });
+      break;
+    }
+    case "page": {
+      const url = canonicalizeURL(info.frameUrl);
+      chrome.tabs.update({
+        url: `http://localhost:5080/video?url=${encodeURIComponent(url)}`
+      });
+      break;
+    }
+    default:
+      console.warn(`Invalid menu item: ${info.menuItemId}`);
+  }
+});
+
+chrome.runtime.onInstalled.addListener(function() {
+  chrome.contextMenus.create({
+    title: "Import link as/go to LIT book",
+    contexts: ["link"],
+    id: "link",
+    targetUrlPatterns: ["https://www.youtube.com/watch*"]
+  });
+  chrome.contextMenus.create({
+    title: "Import this page as/go to LIT book",
+    contexts: ["page"],
+    id: "page",
+    documentUrlPatterns: ["https://www.youtube.com/watch*"]
+  });
+});
+
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   fetch(`http://localhost:5080/api/books?url=${encodeURIComponent(canonicalizeURL(tab.url))}`)
     .then((resp) => resp.json())

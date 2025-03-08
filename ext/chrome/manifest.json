@@ -3,6 +3,10 @@
   "description": "Add LIT captions to videos",
   "version": "1.0",
   "manifest_version": 3,
+  "icons": {
+    "16": "lit-16.png",
+    "64": "lit.png"
+  },
   "action": {
     "default_popup": "lit.html",
     "default_icon": "lit.png"
@@ -24,6 +28,7 @@
     }
   ],
   "permissions": [
+    "contextMenus",
     "tabs"
   ],
   "host_permissions": [
