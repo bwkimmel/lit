@@ -61,11 +61,13 @@ async function onWordClick(e) {
   }
   const json = await resp.json();
   var words = Array();
-  for (const dep of json.deps) {
-    if (words.includes(dep.text)) {
-      continue;
+  if (json.deps) {
+    for (const dep of json.deps) {
+      if (words.includes(dep.text)) {
+        continue;
+      }
+      words.push(dep.text);
     }
-    words.push(dep.text);
   }
   if (!words.includes(json.text)) {
     words.push(json.text);
