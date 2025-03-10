@@ -687,6 +687,7 @@ pattern,translation,tags,parents,output
 */NP/*+이/VCP/*+ㄹ까요/EF/*,shall we be ~?; wondering if is ~?
 */VA/*+ㄹ까/EC/*,shall we be ~?; wondering if is ~?
 */VA/*+었/EP/*+을까/EF/*,would have been ~?; wondering if was ~?
+*/VA/*+었/EP/*+을까/EC/*,would have been ~?; wondering if was ~?
 */NP/*+이/VCP/*+ㄹ/ETM/*,will be ~
 */NN/*+까지/JX/*+도/JX/*,to/until ~ also
 */VA/*+였/EP/*+다/EF/*,was ~
@@ -849,6 +850,8 @@ pattern,translation,tags,parents,output
 */NN/*+이/VCP/*+더라/EF/*,"I (in the past) realized that is ~",???
 */VV/*+더라/EF/*,"I (in the past) realized that ~",???
 */VV/*+더라/EC/*,"I (in the past) realized that ~",???
+*/VA/*+더라/EF/*,"I (in the past) realized that is ~",???
+*/VA/*+더라/EC/*,"I (in the past) realized that is ~",???
 */VA/*+었/EP/*+더라/EF/*,"I (in the past) realized that (yet earlier) was ~",???
 */VV/*+었/EP/*+더라/EF/*,"I (in the past) realized that (yet earlier) ~ed",???
 */NN/*+이/VCP/*+었/EP/*+더라/EF/*,"I (in the past) realized that (yet earlier) was a ~",???
@@ -1505,6 +1508,8 @@ pattern,translation,tags,parents,output
 */VA/*+어/EC/*+오/VV/*+는/ETM/*,that has been ~,,-오다
 */NN/*+용/XSN/*,for ~,,-용
 */NP/*+용/XSN/*,for ~,,-용
+*/NN/*+용/XSN/*+로/JKB/*+만/JX/*,only for ~,,-용
+*/NP/*+용/XSN/*+로/JKB/*+만/JX/*,only for ~,,-용
 */NN/*+이요/JX/*,is ~
 */NP/*+이요/JX/*,is ~
 */NN/*+쪽/NNB/*+로/JKB/*,on the side of the ~; toward the ~,,쪽
@@ -1638,7 +1643,11 @@ pattern,translation,tags,parents,output
 */NP/*+에/JKB/*+야/JX/*,"only if at/to ~ ([kgf](https://kgf.korninterlinereader.asia.ubc.ca/entry/6285e98a0b20af306c90d284))"
 */VV/*+어서/EC/*+이/VCP/*+었/EP/*+다/EF/*,"~ed because ([kgf](https://kgf.korninterlinereader.asia.ubc.ca/entry/6285e98a0b20af306c90d20a))"
 */VV/*+는다니/EC/*,"(abbrev: -는다고 하니) you say that ~?!",,-는다니
+*/VV/*+야/EC/*+되/VV/*+어요/EF/*,must ~
+*/VV/*+야/EC/*+되/VV/*+어요/EC/*,must ~
 */VV/*+야/EC/*+되/VV/*+어/EF/*,must ~
+*/VV/*+야/EC/*+되/VV/*+어/EC/*,must ~
+*/VV/*+야/EC/*+되/VV/*+나/EF/*,must ~?
 */VV/*+어야/EC/*+하/VX/*+겠/EP/*+죠/EC/*,"(guessing; will) have to ~, right?"
 */VV/*+어야/EC/*+되/VV/*+는데/EC/*,"must ~ (contrasting; background info)"
 */VV/*+어/EC/*+야/JX/*+되/VV/*+요/EC/*,must ~
@@ -1659,3 +1668,12 @@ pattern,translation,tags,parents,output
 */VA/*+었/EP/*+다면요/EF/*,if one supposes was ~
 */NN/*+이/VCP/*+었/EP/*+다는/ETM/*,said that was a ~
 */VV/*+을걸/EF/*,will be ~ing,noun
+*/VV/*+을/ETM/*+것/NNB/*+이/VCP/*+습니다/EF/*,will ~
+*/VV/*+어야/EC/*+겠/EP/*+네요/EF/*,(guessing; will) have to ~!
+*/VV/*+어야죠/EF/*,"must ~, right?"
+*/VV/*+어야죠/EC/*,"must ~, right?"
+*/VV/*+어야/EC/*+되/VV/*+겠/EP/*+어/EF/*,(guessing; will) have to ~
+*/VV/*+어야/EC/*+되/VV/*+겠/EP/*+어/EC/*,(guessing; will) have to ~
+*/VV/*+고/EC/*+싶/VX/*+었/EP/*+던/ETM/*,that I wanted to ~
+*/VA/*+고/EC/*+싶/VX/*+었/EP/*+던/ETM/*,that I wanted to ~
+*/NN/*+없이/MAG/*,without ~,,없이
