@@ -8,6 +8,7 @@ pub mod dict;
 pub mod doc;
 pub mod dt;
 pub mod morph;
+pub mod vtt;
 
 #[derive(Debug)]
 pub enum Error {

@@ -46,6 +46,28 @@ url = "https://www.verbix.com/webverbix/korean/{}"
 name = "Google Images"
 url = "https://www.google.com/search?tbm=isch&as_q={}"
 
+# Example custom import plugin.
+# 
+# Args may include "{}", which will be replaced with the URL being imported
+# (use "{{}}" to include a literal "{}" in an argument). If no argument contains
+# "{}", the URL being imported will be added automatically as the last argument.
+#
+# The script must output the content (in this case a valid WebVTT file) and
+# *nothing else* to stdout. Debugging output may be written to stderr, which
+# will be displayed to the user while importing.
+[[import_plugins]]
+name = "Custom"
+url_patterns = ["https://www.youtube.com/watch"] # Not used yet
+content_type = "text/vtt"
+args = ["my_import_script.sh"] # Script must be on PATH
+
+# Optional parameters for cleaning up WebVTT content after-the-fact. Useful for
+# cleaning up some AI-generated subtitles.
+clean_vtt.truncate.max_repetitions = 5
+clean_vtt.truncate.truncated_repetitions = 3
+clean_vtt.truncate.truncation_suffix = "..."
+clean_vtt.merge.max_merge_gap_millis = 500
+
 # Mecab dictionary files for Korean. You can build these from here:
 #   https://bitbucket.org/eunjeon/mecab-ko-dic/src/master/
 # Or download my prebuilt dictionary files from here:

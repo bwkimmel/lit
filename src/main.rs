@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::{BTreeMap, HashMap}, io::Cursor, net::{Ipv4Addr, SocketAddrV4}, str::FromStr, sync::{Arc, LazyLock}};
+use std::{char::REPLACEMENT_CHARACTER, cmp::Ordering, collections::{BTreeMap, HashMap}, io::Cursor, net::{Ipv4Addr, SocketAddrV4}, process::Stdio, str::FromStr, sync::{Arc, LazyLock}};
 
 use anyhow::anyhow;
 use axum::{async_trait, body::{Body, Bytes}, extract::{FromRequestParts, Path, Query, State}, http::{header::CONTENT_TYPE, HeaderMap, StatusCode}, response::{Html, IntoResponse, Redirect}, routing::{get, post}, Form, Json, Router};
@@ -10,8 +10,10 @@ use futures::{executor::block_on, lock::Mutex, StreamExt};
 use image::{ImageFormat, ImageReader};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use subtp::vtt::WebVtt;
+use tempfile::tempdir;
 use tera::Tera;
-use tokio::{fs::File, net::TcpListener};
+use tokio::{fs::File, io::AsyncReadExt, net::TcpListener, process::Command};
 use tokio_util::io::ReaderStream;
 use tower_http::services::ServeDir;
 
@@ -33,6 +35,7 @@ struct Context {
     dict: Dictionary,
     templates: Arc<Mutex<Tera>>,
     docs: Arc<Mutex<HashMap<i64, Document>>>,
+    importing: Arc<Mutex<HashMap<String, Arc<Mutex<ImportJob>>>>>,
 }
 
 #[tokio::main]
@@ -60,10 +63,12 @@ async fn main() -> Result<()> {
     tera.register_function("global_config", config.template.clone());
     let templates = Arc::new(Mutex::new(tera));
     let docs = Arc::new(Mutex::new(HashMap::new()));
-    let ctx = Context { config, korean, books, dict, templates, docs };
+    let importing = Arc::new(Mutex::new(HashMap::new()));
+    let ctx = Context { config, korean, books, dict, templates, docs, importing };
     let app = Router::new()
         .route("/", get(|| async { "Hello, world!" }))
         .route("/import_video", get(get_import_video).post(post_import_video))
+        .route("/import_video_watch", get(get_import_video_watch))
         .route("/video", get(get_video))
         .route("/read/:slug", get(read))
         .route("/edit/:slug", get(get_edit))
@@ -75,6 +80,7 @@ async fn main() -> Result<()> {
         .route("/words/:id/edit", get(edit_word))
         .route("/words/:id/image", get(get_word_image).put(put_word_image).delete(delete_word_image))
         .route("/words/:id/summary", get(get_word_summary))
+        .route("/api/imports", get(get_imports))
         .route("/api/words-suggest", get(words_suggest))
         .route("/api/words-dt", get(words_dt))
         .route("/api/books-dt", get(books_dt))
@@ -1036,6 +1042,12 @@ async fn get_video(
     let Some(url) = req.url else {
         return Ok(Redirect::to("/books"));
     };
+    {
+        let jobs = ctx.importing.lock().await;
+        if jobs.contains_key(&url) {
+            return Ok(Redirect::to(&format!("/import_video_watch?url={}", urlencoding::encode(url.as_str()))));
+        }
+    }
     // FIXME: canonicalize URL
     let ids = ctx.books.find_book_ids_by_url(&url).await?;
     // FIXME: handle case where there are multiple matches.
@@ -1063,6 +1075,12 @@ struct ImportVideoOptionsSubtitles {
     lang: String,
     name: String,
     url: String,
+}
+
+struct ImportJob {
+    stderr: String,
+    err: Option<String>,
+    book_id: Option<i64>,
 }
 
 async fn get_import_video(
@@ -1123,6 +1141,15 @@ async fn get_import_video(
         }
     }
 
+    for plugin in ctx.config.import_plugins.iter() {
+        subtitles.push(ImportVideoOptionsSubtitles {
+            auto: false,
+            lang: ctx.config.lang.clone(),
+            name: plugin.name.clone(),
+            url: format!("plugin:{}", plugin.name),
+        });
+    }
+
     let mut tera = tera::Context::new();
     tera.insert("url", &url);
     tera.insert("title", &title);
@@ -1133,6 +1160,61 @@ async fn get_import_video(
     Ok(Html(ctx.templates.lock().await.render("import_video.html", &tera)?))
 }
 
+async fn get_import_video_watch(
+    State(ctx): State<Arc<Context>>,
+    Query(req): Query<GetImportVideoRequest>,
+) -> Result<impl IntoResponse> {
+    let Some(url) = req.url else {
+        return bad_req("url required");
+    };
+    let jobs = ctx.importing.lock().await;
+    if !jobs.contains_key(&url) {
+        return Ok(Redirect::to(&format!("/video?url={}", urlencoding::encode(&url))).into_response());
+    };
+    let tera = tera::Context::new();
+    Ok(Html(ctx.templates.lock().await.render("import_video_watch.html", &tera)?).into_response())
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct ImportResponse {
+    log: String,
+    offset: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    book_id: Option<i64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ImportRequest {
+    url: String,
+    offset: Option<usize>,
+}
+
+async fn get_imports(
+    State(ctx): State<Arc<Context>>,
+    Query(req): Query<ImportRequest>,
+) -> Result<impl IntoResponse> {
+    let offset = req.offset.unwrap_or_default();
+    let guard = {
+        let jobs = ctx.importing.lock().await;
+        must(jobs.get(&req.url).cloned())?
+    };
+    let job = guard.lock().await;
+    let log = if offset == 0 {
+        job.stderr.clone()
+    } else if let Some((_, tail)) = job.stderr.split_at_checked(offset) {
+        tail.to_string()
+    } else {
+        String::from_utf8_lossy(&job.stderr.as_bytes()[offset..]).to_string()
+    };
+    Ok(Json(ImportResponse {
+        log,
+        offset: job.stderr.len(),
+        error: job.err.clone(),
+        book_id: job.book_id,
+    }))
+}
 
 #[derive(Clone, Debug, Deserialize)]
 struct PostImportVideoRequest {
@@ -1175,6 +1257,127 @@ Language: {}
 .
 "#,
             ctx.config.lang, hh, mm, ss, ms)
+    } else if let Some(plugin_name) = req.subtitles.strip_prefix("plugin:") {
+        let plugins = ctx.config.import_plugins.clone();
+        for plugin in plugins.into_iter() {
+            if plugin.content_type != "text/vtt" {
+                continue;
+            }
+            if plugin.name != plugin_name {
+                continue;
+            }
+            let mut has_placeholder = false;
+            let mut args = plugin.args.iter().map(|arg| {
+                arg.split("{{}}").map(|section| {
+                    if section.contains("{}") {
+                        has_placeholder = true;
+                        section.replace("{}", &req.url)
+                    } else {
+                        section.to_string()
+                    }
+                }).join("{}")
+            }).collect_vec();
+            if !has_placeholder {
+                args.push(req.url.clone());
+            }
+            let mut jobs = ctx.importing.lock().await;
+            if jobs.contains_key(&req.url) {
+                return bad_req(&format!("already importing {}", req.url));
+            }
+
+            let dir = tempdir()?;
+            let mut process = Command::new(args[0].clone())
+                .args(&args[1..])
+                .current_dir(&dir)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()?;
+            let mut stderr = process.stderr.take().unwrap();
+            let import = Arc::new(Mutex::new(ImportJob {
+                stderr: String::new(),
+                err: None,
+                book_id: None,
+            }));
+            jobs.insert(req.url.clone(), import.clone());
+            let import_stderr = import.clone();
+            tokio::spawn(async move {
+                let import = import_stderr;
+                let mut buf = [0; 1024];
+                let mut pos = 0;
+                loop {
+                    let bytes_read = match stderr.read(&mut buf[pos..]).await {
+                        Ok(n) => n,
+                        Err(err) => {
+                            import.lock().await.stderr += &format!("\n\nImport stream broken: {err}");
+                            return;
+                        }
+                    };
+                    if bytes_read == 0 {
+                        break;
+                    }
+                    let n = pos + bytes_read;
+                    let s = extract_prefix_string_from_buf(&buf[0..n]);
+                    {
+                        import.lock().await.stderr += &s;
+                    }
+                    pos = n - s.len();
+                    for i in 0..pos {
+                        let j = i + s.len();
+                        buf[i] = buf[j];
+                    }
+                }
+            });
+            let ctx_child = ctx.clone();
+            let url = req.url.clone();
+            tokio::spawn(async move {
+                let _dir = dir; // drop working dir when this thread exits.
+                let ctx = ctx_child;
+                let output = match process.wait_with_output().await {
+                    Ok(o) => o,
+                    Err(err) => {
+                        import.lock().await.err = Some(format!("Import script failed: {err}"));
+                        return;
+                    },
+                };
+                if !output.status.success() {
+                    let code = output.status.code().unwrap_or_default();
+                    import.lock().await.err = Some(format!("Import script exited with status {code}"));
+                    return;
+                }
+                let mut content = String::from_utf8_lossy(&output.stdout).to_string();
+                let vtt = match WebVtt::parse(&content) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        import.lock().await.err = Some(format!("Invalid WebVTT output: {err}"));
+                        return;
+                    },
+                };
+                if let Some(ref clean_opts) = plugin.clean_vtt {
+                    let vtt = lit::vtt::clean(vtt, clean_opts);
+                    content = vtt.render();
+                }
+                let result = ctx.books.insert_book(NewBook {
+                    slug: None,
+                    title: req.title,
+                    content_type: "text/vtt".to_string(),
+                    content,
+                    audio_file: None,
+                    url: Some(url.clone()),
+                    published: req.published.map(|t| Utc.timestamp_opt(t, 0).unwrap()),
+                    tags,
+                }).await;
+                match result {
+                    Ok(id) => {
+                        import.lock().await.book_id = Some(id);
+                    },
+                    Err(err) => {
+                        import.lock().await.err = Some(format!("Insert book failed: {err}"));
+                    },
+                }
+            });
+            return Ok(Redirect::to(&format!("/import_video_watch?url={}", urlencoding::encode(req.url.as_str()))));
+        }
+        return bad_req(&format!("invalid plugin name: {}", plugin_name));
     } else {
         reqwest::get(req.subtitles).await?.text().await?
     };
@@ -1189,4 +1392,13 @@ Language: {}
         tags,
     }).await?;
     Ok(Redirect::to(&format!("/read/{id}")))
+}
+
+fn extract_prefix_string_from_buf(buf: &[u8]) -> String {
+    let s = String::from_utf8_lossy(buf);
+    if let Some(s) = s.strip_suffix(REPLACEMENT_CHARACTER) {
+        s.to_string()
+    } else {
+        s.to_string()
+    }
 }

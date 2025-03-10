@@ -5,7 +5,7 @@ use figment::{providers::{Format, Toml}, value::magic::RelativePathBuf, Figment}
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, Sqlite};
 
-use crate::morph::MecabConfig;
+use crate::{morph::MecabConfig, vtt::CleanVttOptions};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Dictionary {
@@ -29,6 +29,15 @@ pub struct DisplayConfig {
     pub hide_tags: HashSet<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct ImportPluginConfig {
+    pub name: String,
+    pub url_patterns: Vec<String>,
+    pub content_type: String,
+    pub args: Vec<String>,
+    pub clean_vtt: Option<CleanVttOptions>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     pub port: u16,
@@ -41,6 +50,8 @@ pub struct Config {
     #[serde(default)]
     pub template: TemplateConfig,
     userdata: RelativePathBuf,
+    #[serde(default)]
+    pub import_plugins: Vec<ImportPluginConfig>,
 }
 
 impl Config {

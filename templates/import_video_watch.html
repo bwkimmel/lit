@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Importing video{% endblock title %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #content {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+      grid-template-areas:
+        "error"
+        "log";
+      width: 100%;
+      height: 100%;
+      overflow: clip;
+    }
+
+    #error {
+      grid-area: error;
+      background-color: red;
+      color: white;
+      width: 100%;
+      min-height: 0;
+      max-height: fit-content;
+      padding: 1em;
+      display: none;
+      vertical-align: middle;
+    }
+
+    #error.show {
+      display: block;
+    }
+
+    #log {
+      grid-area: log;
+      width: auto;
+      height: auto;
+      resize: none;
+      margin: 5px;
+    }
+  </style>
+{% endblock %}
+{% block content %}
+  <div id="content">
+    <div id="error"></div>
+    <textarea id="log" readonly></textarea>
+  </div>
+  <script>
+    const query = new URLSearchParams(window.location.search);
+    const url = query.get('url');
+    var offset = 0; 
+
+    function textareaAtEnd(area) {
+      return ((area.scrollTop + area.offsetHeight) >= area.scrollHeight);
+    }
+
+    async function refresh() {
+      const resp = await fetch(`/api/imports?url=${encodeURIComponent(url)}&offset=${offset}`);
+      if (!resp.ok) {
+        console.warn(`Could not fetch import status: ${await resp.text()}`);
+        setTimeout(refresh, 1000);
+        return;
+      }
+      const json = await resp.json();
+
+      const log = document.getElementById('log');
+      const atBottom = textareaAtEnd(log);
+      log.value += json.log;
+      offset = json.offset;
+
+      const err = document.getElementById('error');
+      if (json.hasOwnProperty('error') && json.error != "") {
+        err.innerText = json.error;
+        err.classList.add('show');
+        return;
+      }
+
+      if (atBottom) {
+        log.scrollTop = log.scrollHeight;
+      }
+
+      if (json.hasOwnProperty('book_id')) {
+        window.location.href = `/read/${json.book_id}`;
+        return;
+      }
+
+      setTimeout(refresh, 1000);
+    }
+
+    refresh();
+  </script>
+{% endblock content %}
