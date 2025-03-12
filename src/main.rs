@@ -17,7 +17,7 @@ use tokio::{fs::File, io::AsyncReadExt, net::TcpListener, process::Command};
 use tokio_util::io::ReaderStream;
 use tower_http::services::ServeDir;
 
-use lit::{bad_req, books::{Book, Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{analyze_document, KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
+use lit::{bad_req, books::{Book, Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{analyze_document, korean::KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
 use url::Url;
 use youtube_dl::YoutubeDl;
 

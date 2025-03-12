@@ -5,7 +5,7 @@ use async_stream::try_stream;
 use clap::Parser;
 use futures::{Stream, StreamExt};
 use indicatif::ProgressBar;
-use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, Word, WordStatus}, doc::{self, Document}, morph::{analyze_document, KoreanParser, Segment}, Result};
+use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, Word, WordStatus}, doc::{self, Document}, morph::{analyze_document, korean::KoreanParser, Segment}, Result};
 use tokio::task::JoinSet;
 
 #[derive(Parser, Debug)]

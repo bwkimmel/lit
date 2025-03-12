@@ -6,7 +6,7 @@ use clap::Parser;
 use futures::{Stream, StreamExt};
 use indicatif::ProgressBar;
 use itertools::Itertools;
-use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, WordStatus}, doc::{self, Document}, morph::{analyze_document, KoreanParser, Segment}, Result};
+use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, WordStatus}, doc::{self, Document}, morph::{analyze_document, korean::KoreanParser, Segment}, Result};
 use tokio::task::JoinSet;
 use unicode_segmentation::UnicodeSegmentation;
 
