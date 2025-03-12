@@ -6,7 +6,7 @@ use axum_extra::{headers::Range, TypedHeader};
 use axum_range::{KnownSize, Ranged};
 use chrono::{TimeZone, Utc};
 use clap::Parser;
-use futures::{executor::block_on, lock::Mutex, StreamExt};
+use futures::{executor::block_on, lock::Mutex};
 use image::{ImageFormat, ImageReader};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -137,71 +137,36 @@ struct WordInfo {
     deps: Vec<String>,
 }
 
-async fn analyze_document(ctx: &Context, doc: Document) -> Result<Document> {
-    if doc.info::<BTreeMap<usize, WordInfo>>().is_some() {
-        return Ok(doc);
-    }
-    let mut segs = vec![];
-
-    let mut total_elapsed = std::time::Duration::ZERO;
-
-    for span in doc.spans.iter() {
-        let text = &doc.text[span.clone()];
-        if text.trim().is_empty() {
-            continue;
-        }
-        let mut stream = Box::pin(time!(ctx.korean.parse(text)?));
-        while let Some(seg) = time!(total_elapsed, stream.next().await) {
-            let seg = seg?.with_offset(span.start);
-            if seg.words.is_empty() {
-                continue;
-            }
-
-            // result += render_word(seg.text.as_str(), word_map).as_str();
-            let s = seg.text.as_str();
-            let mut words = ctx.dict.find_words_by_text(s).await?;
-            let dict_words_empty = words.is_empty();
-            for w in seg.words.iter() {
-                if !w.parents.contains(&w.text) && (dict_words_empty || !w.translation.is_empty()) {
-                    words.push(w.clone());
-                }
-            }
-            let parents = words.iter().flat_map(|w| w.parents.clone());
-            let mut dict = ctx.dict.find_word_trees_by_text(parents).await?;
-            dict.insert(seg.text.clone(), words);
-            for (_, words) in dict.iter_mut() {
-                for word in words.iter_mut() {
-                    word.resolved_status = Some(ctx.dict.resolve_status(word).await?);
-                }
-            }
-            // resolve_stati(ctx.dict, &mut dict);
-
-            let words = dict.get(&seg.text).unwrap();
-            let mut deps = vec![seg.text.clone()];
-            let mut stack: Vec<_> = words.iter().rev().collect();
-            while let Some(w) = stack.pop() {
-                for parent in w.parents.iter().rev() {
-                    if !deps.contains(parent) {
-                        deps.push(parent.clone());
-                    }
-                    for parent_word in dict.get(parent).unwrap() {
-                        stack.push(parent_word);
-                    }
-                }
-            }
-            let deps = deps;
-            let seg = Segment { words: words.clone(), ..seg };
-
-            segs.push(WordInfo { seg, dict, deps });
+async fn lookup_ancestor_words(seg: &Segment, ctx_dict: &Dictionary) -> Result<WordInfo> {
+    let parents = seg.words.iter().flat_map(|w| w.parents.clone());
+    let mut dict = ctx_dict.find_word_trees_by_text(parents).await?;
+    dict.insert(seg.text.clone(), seg.words.clone());
+    for (_, words) in dict.iter_mut() {
+        for word in words.iter_mut() {
+            word.resolved_status = Some(ctx_dict.resolve_status(word).await?);
         }
     }
+    let words = dict.get(&seg.text).unwrap();
+    let mut deps = vec![seg.text.clone()];
+    let mut stack: Vec<_> = words.iter().rev().collect();
+    while let Some(w) = stack.pop() {
+        for parent in w.parents.iter().rev() {
+            if !deps.contains(parent) {
+                deps.push(parent.clone());
+            }
+            for parent_word in dict.get(parent).unwrap() {
+                stack.push(parent_word);
+            }
+        }
+    }
+    let deps = deps;
+    let seg = Segment {
+        words: words.clone(),
+        range: seg.range.clone(),
+        text: seg.text.clone(),
+    };
 
-    dbg!(total_elapsed);
-
-    let segs = BTreeMap::from_iter(
-        segs.into_iter().map(|info| (info.seg.range.start, info)));
-
-    Ok(doc.with(segs))
+    Ok(WordInfo { seg, dict, deps })
 }
 
 struct TextAreaSnippetRenderer<'a> {
@@ -236,27 +201,28 @@ impl<'a> TeraSnippetRenderer<'a> {
 impl<'a> SnippetRenderer for TeraSnippetRenderer<'a> {
     async fn render_snippet(&self, doc: &Document, range: std::ops::Range<usize>) -> Result<String> {
         let mut t = std::time::Duration::ZERO;
-        let words: &BTreeMap<usize, WordInfo> = doc.info()
+        let words: &BTreeMap<usize, Segment> = doc.info()
             .ok_or_else(|| anyhow!("document analysis missing"))?;
         let mut pos = range.start;
         let mut result = String::new();
-        for (&start, word) in words.range(range.clone()) {
+        for (&start, seg) in words.range(range.clone()) {
             if start > pos {
                 result += &doc.text[pos..start].replace("\n", "<br>"); // FIXME: HTML-escape
             }
-            pos = word.seg.range.end;
+            pos = seg.range.end;
 
-            let (min_status, max_status) = self.dict.resolve_stati(word.seg.words.iter()).await?;
-            let words = word.dict.get(&word.seg.text).unwrap();
+            let (min_status, max_status) = self.dict.resolve_stati(seg.words.iter()).await?;
+            let word_info = lookup_ancestor_words(seg, &self.dict).await?;
+            let words = word_info.dict.get(&seg.text).unwrap();
 
             let mut ctx = tera::Context::new();
-            ctx.insert("text", &word.seg.text);
+            ctx.insert("text", &seg.text);
             ctx.insert("words", &words);
             ctx.insert("status", &max_status);
             ctx.insert("min_status", &min_status);
-            ctx.insert("dict", &word.dict);
+            ctx.insert("dict", &word_info.dict);
             ctx.insert("hide_tags", &self.display.hide_tags);
-            ctx.insert("deps", &word.deps);
+            ctx.insert("deps", &word_info.deps);
             result += time!(t, self.tera.render("inline_word.html", &ctx)?).trim();
         }
         let end = range.end;
@@ -337,7 +303,7 @@ async fn read(
     dbg!(now.elapsed());
     let document = parser.parse_document(&book.content)?;
     dbg!(now.elapsed());
-    let document = analyze_document(&ctx, document).await?;
+    let document = ctx.korean.analyze_document(document).await?;
     dbg!(now.elapsed());
     // let document = compute_document_stats(&ctx, document).await?;
     // dbg!(document.info::<DocumentStats>());
@@ -784,30 +750,15 @@ struct BookCues {
     cues: Vec<BookCue>,
 }
 
-fn resolve_status(wi: &WordInfo) -> (WordStatus, WordStatus) {
-    use WordStatus::*;
-    let (mut min, mut max) = (Unknown, Unknown);
-    for (a, b) in wi.seg.words.iter().flat_map(|w| w.resolved_status) {
-        min = match min {
-            Unknown => a,
-            _ => min.min(a),
-        };
-        max = match max {
-            Unknown => b,
-            _ => max.max(b),
-        }
-    }
-    (min, max)
-}
-
-fn render_book_cue(doc: &Document, cue: &Cue) -> Result<BookCue> {
-    let Some(words) = doc.info::<BTreeMap<usize, WordInfo>>() else {
+async fn render_book_cue(doc: &Document, cue: &Cue, dict: &Dictionary) -> Result<BookCue> {
+    let Some(words) = doc.info::<BTreeMap<usize, Segment>>() else {
         return status_msg(StatusCode::INTERNAL_SERVER_ERROR, "no word info");
     };
     let mut lines = vec![];
     let mut tokens = vec![];
     let mut pos = cue.text_range.start;
-    for (start, word) in words.range(cue.text_range.clone()) {
+    for (start, seg) in words.range(cue.text_range.clone()) {
+        let seg = lookup_ancestor_words(seg, dict).await?.seg;
         if *start > pos {
             let text = doc.text[pos..*start].to_string() + "\0";
             for (i, line) in text.lines().enumerate() {
@@ -825,9 +776,9 @@ fn render_book_cue(doc: &Document, cue: &Cue) -> Result<BookCue> {
                 });
             }
         }
-        pos = word.seg.range.end;
-        let text = word.seg.text.clone();
-        let (min_status, max_status) = resolve_status(word);
+        pos = seg.range.end;
+        let text = seg.text.clone();
+        let (min_status, max_status) = dict.resolve_stati(seg.words.iter()).await?;
         let offset = *start;
         let word = Some(BookCueWord { offset, min_status, max_status });
         tokens.push(BookCueToken { text, word });
@@ -873,7 +824,7 @@ async fn get_book_cues(
                 return bad_req("invalid book type");
             }
             let doc = VttParser.parse_document(&book.content)?;
-            let doc = analyze_document(&ctx, doc).await?;
+            let doc = ctx.korean.analyze_document(doc).await?;
             docs.insert(id, doc);
             docs.get(&id).unwrap()
         },
@@ -899,9 +850,11 @@ async fn get_book_cues(
     };
     let max = max.min(cues.len() - 1);
 
-    let cues = cues[min..=max].iter()
-        .map(|cue| render_book_cue(doc, cue))
-        .collect::<Result<Vec<_>>>()?;
+    let book_cues = cues;
+    let mut cues = vec![];
+    for cue in book_cues[min..=max].iter() {
+        cues.push(render_book_cue(doc, cue, &ctx.dict).await?);
+    }
 
     Ok(Json(BookCues { cues }))
 }
@@ -977,18 +930,19 @@ async fn get_book_word(
                 return bad_req("invalid book type");
             }
             let doc = VttParser.parse_document(&book.content)?;
-            let doc = analyze_document(&ctx, doc).await?;
+            let doc = ctx.korean.analyze_document(doc).await?;
             docs.insert(id, doc);
             docs.get(&id).unwrap()
         },
     };
 
-    let Some(words) = doc.info::<BTreeMap<usize, WordInfo>>() else {
+    let Some(words) = doc.info::<BTreeMap<usize, Segment>>() else {
         return status_msg(StatusCode::INTERNAL_SERVER_ERROR, "no word info");
     };
 
-    let word_info = must(words.get(&offset))?;
-    let (min_status, max_status) = resolve_status(word_info);
+    let seg = must(words.get(&offset))?;
+    let word_info = lookup_ancestor_words(seg, &ctx.dict).await?;
+    let (min_status, max_status) = ctx.dict.resolve_stati(word_info.seg.words.iter()).await?;
 
     let word_ids = word_info.seg.words.iter().filter_map(|w| w.id).collect_vec();
 
