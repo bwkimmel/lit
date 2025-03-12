@@ -671,6 +671,8 @@ pattern,translation,tags,parents,output
 */VV/*+ㄴ/ETM/*+지/NNB/*,[indirect question] if ~ed?
 */VA/*+ㄴ/ETM/*+지/NNB/*,[indirect question] if is ~?
 */VV/*+었/EP/*+대요/EF/*,I heard that ~ed
+으래요/EF/*,,,,래요/EF/*
+으래요/EC/*,,,,래요/EC/*
 */VV/*+래요/EF/*,I was told to ~
 */VV/*+래요/EC/*,I was told to ~
 */VA/*+겠/EP/*+죠/EF/*,"(guessing; will be) ~, right?"
@@ -1163,6 +1165,9 @@ pattern,translation,tags,parents,output
 */NP/*+이/VCP/*+겠/EP/*+죠/EF/*,"guessing is ~, right?; will be ~, right?"
 */NN/*+이/VCP/*+었/EP/*+나/EF/*,was a ~?
 */VV/*+ㅂ시오/EF/*,[command] ~,"honorific,formal"
+*/VV/*+으시오/EF/*,[command] ~,"honorific,formal"
+*/VV/*+ㅂ시오/EC/*,[command] ~,"honorific,formal"
+*/VV/*+으시오/EC/*,[command] ~,"honorific,formal"
 */VV/*+어서/EC/*+만/JX/*,"only after having ~ ([ref](https://kgf.korninterlinereader.asia.ubc.ca/entry/62e22be79af00c002e6edeb2))"
 */VA/*+었/EP/*+겠/EP/*+지만/EC/*,"guessing was ~, but...; would have been ~, but..."
 */NN/*+하고/JKB/*+의/JKG/*,with ~'s,posessive
@@ -1626,6 +1631,7 @@ pattern,translation,tags,parents,output
 */NN/*+별/XSN/*+로/JKB/*,according to ~,,-별
 */VV/*+기/ETN/*+의/JKG/*,~ing's; of ~ing
 */VV/*+ㄹ/ETM/*+터/NNB/*+이/VCP/*+ㄴ데/EC/*,"I expect/suppose that will ~, but... ([kgf](https://kgf.korninterlinereader.asia.ubc.ca/entry/6285e98a0b20af306c90d09f))",,터
+*/VV/*+을/ETM/*+터/NNB/*+이/VCP/*+ㄴ데/EC/*,"I expect/suppose that will ~, but... ([kgf](https://kgf.korninterlinereader.asia.ubc.ca/entry/6285e98a0b20af306c90d09f))",,터
 */NN/*+쯤/XSN/*+에/JKB/*,approximately ~; about ~ (time),,쯤
 */VA/*+ㄴ/ETM/*+것/NNB/*+이/JKC/*,being ~,subject
 */VV/*+기/ETN/*+용/XSN/*,for ~ing,noun,-용
@@ -1677,3 +1683,4 @@ pattern,translation,tags,parents,output
 */VV/*+고/EC/*+싶/VX/*+었/EP/*+던/ETM/*,that I wanted to ~
 */VA/*+고/EC/*+싶/VX/*+었/EP/*+던/ETM/*,that I wanted to ~
 */NN/*+없이/MAG/*,without ~,,없이
+*/VV/*+가요/EF/*,go ~,,-가다
