@@ -705,43 +705,41 @@ impl KoreanParser {
 
         None
     }
+}
 
-    pub async fn analyze_document(&self, doc: Document) -> Result<Document> {
-        if doc.info::<BTreeMap<usize, Segment>>().is_some() {
-            return Ok(doc);
+pub async fn analyze_document(doc: Document, parser: &KoreanParser, dict: &Dictionary) -> Result<Document> {
+    if doc.info::<BTreeMap<usize, Segment>>().is_some() {
+        return Ok(doc);
+    }
+    let mut segs = vec![];
+
+    for span in doc.spans.iter() {
+        let text = &doc.text[span.clone()];
+        if text.trim().is_empty() {
+            continue;
         }
-        let mut segs = vec![];
-
-        for span in doc.spans.iter() {
-            let text = &doc.text[span.clone()];
-            if text.trim().is_empty() {
+        let mut stream = Box::pin(parser.parse(text)?);
+        while let Some(seg) = stream.next().await {
+            let seg = seg?.with_offset(span.start);
+            if seg.words.is_empty() {
                 continue;
             }
-            let mut stream = Box::pin(self.parse(text)?);
-            while let Some(seg) = stream.next().await {
-                let seg = seg?.with_offset(span.start);
-                if seg.words.is_empty() {
-                    continue;
-                }
 
-                // result += render_word(seg.text.as_str(), word_map).as_str();
-                let s = seg.text.as_str();
-                let mut words = self.lit_dict.find_words_by_text(s).await?;
-                let dict_words_empty = words.is_empty();
-                for w in seg.words.iter() {
-                    if !w.parents.contains(&w.text) && (dict_words_empty || !w.translation.is_empty()) {
-                        words.push(w.clone());
-                    }
+            let mut words = dict.find_words_by_text(&seg.text).await?;
+            let dict_words_empty = words.is_empty();
+            for w in seg.words.iter() {
+                if !w.parents.contains(&w.text) && (dict_words_empty || !w.translation.is_empty()) {
+                    words.push(w.clone());
                 }
-                let seg = Segment { words: words.clone(), ..seg };
-
-                segs.push(seg);
             }
+            let seg = Segment { words: words.clone(), ..seg };
+
+            segs.push(seg);
         }
-
-        let segs = BTreeMap::from_iter(
-            segs.into_iter().map(|seg| (seg.range.start, seg)));
-
-        Ok(doc.with(segs))
     }
+
+    let segs = BTreeMap::from_iter(
+        segs.into_iter().map(|seg| (seg.range.start, seg)));
+
+    Ok(doc.with(segs))
 }

@@ -17,7 +17,7 @@ use tokio::{fs::File, io::AsyncReadExt, net::TcpListener, process::Command};
 use tokio_util::io::ReaderStream;
 use tower_http::services::ServeDir;
 
-use lit::{bad_req, books::{Book, Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
+use lit::{bad_req, books::{Book, Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{analyze_document, KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
 use url::Url;
 use youtube_dl::YoutubeDl;
 
@@ -303,7 +303,7 @@ async fn read(
     dbg!(now.elapsed());
     let document = parser.parse_document(&book.content)?;
     dbg!(now.elapsed());
-    let document = ctx.korean.analyze_document(document).await?;
+    let document = analyze_document(document, &ctx.korean, &ctx.dict).await?;
     dbg!(now.elapsed());
     // let document = compute_document_stats(&ctx, document).await?;
     // dbg!(document.info::<DocumentStats>());
@@ -824,7 +824,7 @@ async fn get_book_cues(
                 return bad_req("invalid book type");
             }
             let doc = VttParser.parse_document(&book.content)?;
-            let doc = ctx.korean.analyze_document(doc).await?;
+            let doc = analyze_document(doc, &ctx.korean, &ctx.dict).await?;
             docs.insert(id, doc);
             docs.get(&id).unwrap()
         },
@@ -930,7 +930,7 @@ async fn get_book_word(
                 return bad_req("invalid book type");
             }
             let doc = VttParser.parse_document(&book.content)?;
-            let doc = ctx.korean.analyze_document(doc).await?;
+            let doc = analyze_document(doc, &ctx.korean, &ctx.dict).await?;
             docs.insert(id, doc);
             docs.get(&id).unwrap()
         },

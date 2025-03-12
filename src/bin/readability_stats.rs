@@ -5,7 +5,7 @@ use async_stream::try_stream;
 use clap::Parser;
 use futures::{Stream, StreamExt};
 use indicatif::ProgressBar;
-use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, Word, WordStatus}, doc::{self, Document}, morph::{KoreanParser, Segment}, Result};
+use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, Word, WordStatus}, doc::{self, Document}, morph::{analyze_document, KoreanParser, Segment}, Result};
 use tokio::task::JoinSet;
 
 #[derive(Parser, Debug)]
@@ -108,7 +108,7 @@ async fn analyze_book(book: Book, dict: Dictionary, lang: Arc<KoreanParser>) -> 
     };
 
     let document = parser.parse_document(&book.content).map_err(|e| anyhow!("cannot parse book {}: {e}", book.id))?.with(book);
-    let document = lang.analyze_document(document).await?;
+    let document = analyze_document(document, &lang, &dict).await?;
     let document = compute_document_stats(&dict, document).await?;
     Ok(document.info().cloned().unwrap())
 }
