@@ -5,7 +5,7 @@ use figment::{providers::{Format, Toml}, value::magic::RelativePathBuf, Figment}
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, Sqlite};
 
-use crate::{morph::korean::MecabConfig, vtt::CleanVttOptions};
+use crate::{morph::MorphConfig, vtt::CleanVttOptions};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Dictionary {
@@ -46,7 +46,8 @@ pub struct Config {
     #[serde(default)]
     pub display: DisplayConfig,
     pub dictionaries: Vec<Dictionary>,
-    pub mecab: MecabConfig,
+    #[serde(default)]
+    pub morph: MorphConfig,
     #[serde(default)]
     pub template: TemplateConfig,
     userdata: RelativePathBuf,

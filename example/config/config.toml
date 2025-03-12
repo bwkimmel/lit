@@ -73,8 +73,9 @@ clean_vtt.merge.max_merge_gap_millis = 500
 # Or download my prebuilt dictionary files from here:
 #   https://www.dropbox.com/scl/fo/4dpe9curznfh58yicvydz/APtTAtu51f4qAkiMc5RUDp4?rlkey=q6cap8mhpmh73cr5dy7591vqy&st=8is8hric&dl=0
 # The paths may be absolute, or relative to this file.
-[mecab]
-sysdic = "../mecab_ko_dic/sys.dic"
-unkdic = "../mecab_ko_dic/unk.dic"
-matrix = "../mecab_ko_dic/matrix.bin"
-char = "../mecab_ko_dic/char.bin"
+# 
+#[morph.korean]
+#sysdic = "../mecab_ko_dic/sys.dic"
+#unkdic = "../mecab_ko_dic/unk.dic"
+#matrix = "../mecab_ko_dic/matrix.bin"
+#char = "../mecab_ko_dic/char.bin"

@@ -5,7 +5,7 @@ use async_stream::try_stream;
 use clap::Parser;
 use futures::{Stream, StreamExt};
 use indicatif::ProgressBar;
-use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, Word, WordStatus}, doc::{self, Document}, morph::{analyze_document, korean::KoreanParser, Segment}, Result};
+use lit::{bad_req, books::{Book, Books}, config::Config, dict::{Dictionary, Word, WordStatus}, doc::{self, Document}, morph::{self, analyze_document, Morph, Segment}, Result};
 use tokio::task::JoinSet;
 
 #[derive(Parser, Debug)]
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     let books = Books::new(pool.clone(), config.book_audio_path());
     let dict = Dictionary::new(pool.clone(), config.word_images_path());
     dict.prefetch_all().await?;
-    let lang = KoreanParser::load(&config.mecab, dict.clone())?;
+    let lang = Morph::load(&config.morph, dict.clone())?;
     let lang = Arc::new(lang);
 
     let mut books_stream = book_list(&books, &args);
@@ -99,7 +99,7 @@ fn book_list<'a>(books: &'a Books, args: &'a Args) -> Pin<Box<dyn Stream<Item = 
     Box::pin(books.all_books())
 }
 
-async fn analyze_book(book: Book, dict: Dictionary, lang: Arc<KoreanParser>) -> Result<DocumentStats> {
+async fn analyze_book(book: Book, dict: Dictionary, lang: Arc<impl morph::Parser>) -> Result<DocumentStats> {
     let parser: Box<dyn doc::Parser> = match book.content_type.as_str() {
         "text/plain" => Box::new(doc::PlainTextParser),
         "text/vtt" => Box::new(doc::vtt::VttParser),
@@ -108,7 +108,7 @@ async fn analyze_book(book: Book, dict: Dictionary, lang: Arc<KoreanParser>) -> 
     };
 
     let document = parser.parse_document(&book.content).map_err(|e| anyhow!("cannot parse book {}: {e}", book.id))?.with(book);
-    let document = analyze_document(document, &lang, &dict).await?;
+    let document = analyze_document(document, &*lang, &dict).await?;
     let document = compute_document_stats(&dict, document).await?;
     Ok(document.info().cloned().unwrap())
 }

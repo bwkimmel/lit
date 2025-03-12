@@ -17,7 +17,7 @@ use tokio::{fs::File, io::AsyncReadExt, net::TcpListener, process::Command};
 use tokio_util::io::ReaderStream;
 use tower_http::services::ServeDir;
 
-use lit::{bad_req, books::{Book, Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{analyze_document, korean::KoreanParser, Segment}, must, not_found, status, status_msg, time, Error, Result};
+use lit::{bad_req, books::{Book, Books, NewBook}, check, config::{Config, DisplayConfig}, dict::{Dictionary, Word, WordStatus}, doc::{self, markdown::{MarkdownHtmlRenderer, MarkdownParser}, vtt::{Cue, CueTime, VttHtmlRenderer, VttParser}, DefaultRenderer, Document, Parser as _, PlainTextParser, Renderer, SnippetRenderer}, dt, morph::{analyze_document, Morph, Segment}, must, not_found, status, status_msg, time, Error, Result};
 use url::Url;
 use youtube_dl::YoutubeDl;
 
@@ -30,7 +30,7 @@ struct Args {
 
 struct Context {
     config: Config,
-    korean: Arc<KoreanParser>,
+    morph: Morph,
     books: Books,
     dict: Dictionary,
     templates: Arc<Mutex<Tera>>,
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     let books = Books::new(pool.clone(), config.book_audio_path());
     let dict = Dictionary::new(pool.clone(), config.word_images_path());
     time!(dict.prefetch_all().await?);
-    let korean = Arc::new(KoreanParser::load(&config.mecab, dict.clone())?);
+    let morph = Morph::load(&config.morph, dict.clone())?;
     let port = config.port;
     let mut tera = match Tera::new("templates/**/*.html") {
         Ok(t) => t,
@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
     let templates = Arc::new(Mutex::new(tera));
     let docs = Arc::new(Mutex::new(HashMap::new()));
     let importing = Arc::new(Mutex::new(HashMap::new()));
-    let ctx = Context { config, korean, books, dict, templates, docs, importing };
+    let ctx = Context { config, morph, books, dict, templates, docs, importing };
     let app = Router::new()
         .route("/", get(|| async { "Hello, world!" }))
         .route("/import_video", get(get_import_video).post(post_import_video))
@@ -303,7 +303,7 @@ async fn read(
     dbg!(now.elapsed());
     let document = parser.parse_document(&book.content)?;
     dbg!(now.elapsed());
-    let document = analyze_document(document, &ctx.korean, &ctx.dict).await?;
+    let document = analyze_document(document, &ctx.morph, &ctx.dict).await?;
     dbg!(now.elapsed());
     // let document = compute_document_stats(&ctx, document).await?;
     // dbg!(document.info::<DocumentStats>());
@@ -824,7 +824,7 @@ async fn get_book_cues(
                 return bad_req("invalid book type");
             }
             let doc = VttParser.parse_document(&book.content)?;
-            let doc = analyze_document(doc, &ctx.korean, &ctx.dict).await?;
+            let doc = analyze_document(doc, &ctx.morph, &ctx.dict).await?;
             docs.insert(id, doc);
             docs.get(&id).unwrap()
         },
@@ -930,7 +930,7 @@ async fn get_book_word(
                 return bad_req("invalid book type");
             }
             let doc = VttParser.parse_document(&book.content)?;
-            let doc = analyze_document(doc, &ctx.korean, &ctx.dict).await?;
+            let doc = analyze_document(doc, &ctx.morph, &ctx.dict).await?;
             docs.insert(id, doc);
             docs.get(&id).unwrap()
         },

@@ -1,9 +1,9 @@
 # LIT (Language Immersion Tool)
 
 This is a very rough language-learning reader application, based on
-[Lute](https://github.com/LuteOrg/lute-v3), that supports some key features I
-found useful for studying Korean in particular, but which would have been
-difficult to integrate into an upstream contribution.
+[Lute](https://github.com/LuteOrg/lute-v3), that supports some somewhat-niche
+features that may be useful for studying certain languages, but which would have
+been difficult to integrate into an upstream contribution.
 
 This is currently unpolished and should be considered "early alpha". If you're
 looking for something more stable, please consider using
@@ -20,9 +20,8 @@ looking for something more stable, please consider using
   sqlite data/${ENV?}/lit.db < schema/db.sql
   ```
 - Copy the example config (`example/config/config.toml`) into the same directory
-  as your database.
-- Download or build the Korean Mecab dictionary files (see instructions in the
-  `[mecab]` section of `config.toml`).
+  as your database. Read through this file carefully, and edit it to suit your
+  needs.
 - Optionally install the Chrome extension under `ext/chrome`. This will overlay
   the reader onto any video page that has been imported.
 - Import some books. There is a CLI tool, `src/bin/add_book.rs`. See

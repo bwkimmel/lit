@@ -2,15 +2,16 @@ use std::{collections::{HashMap, VecDeque}, fmt::{Debug, Display}, mem::swap, op
 
 use anyhow::anyhow;
 use async_stream::try_stream;
+use axum::async_trait;
 use figment::value::magic::RelativePathBuf;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use notmecab::{Blob, Dict, LexerToken};
 use serde::{Deserialize, Serialize};
 use serde_with::{skip_serializing_none, DeserializeFromStr};
 
 use crate::{dict::{Dictionary, Word, WordStatus, EMPTY_WORD}, time, Error, Result};
 
-use super::Segment;
+use super::{Parser, Segment};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct Element {
@@ -288,16 +289,15 @@ impl<'a> KoreanParseOutput<'a> {
         let mut tokens = vec![];
 
         while let Some(token) = self.tokens.pop_front() {
+            if !token.pattern.is_word() {
+                if range.is_some() {
+                    break;
+                } else {
+                    continue;
+                }
+            }
             let token_range = token.range.clone()
                 .ok_or_else(|| anyhow!("token is missing source range"))?;
-            if !token.pattern.is_word() {
-                self.next = Some(Segment {
-                    range: token_range,
-                    text: token.text.to_string(),
-                    words: vec![],
-                });
-                break;
-            }
             if let Some(ref mut range) = range {
                 range.end = token_range.end;
             } else {
@@ -401,7 +401,7 @@ impl KoreanParser {
         Ok(KoreanParser { dict, rules, lit_dict, overrides })
     }
 
-    pub fn parse<'a>(&'a self, text: &'a str) -> Result<impl Stream<Item = Result<Segment>> + 'a> {
+    fn parse_stream<'a>(&'a self, text: &'a str) -> Result<impl Stream<Item = Result<Segment>> + 'a> {
         let mut tokens = VecDeque::new();
         let result = self.dict.tokenize(text)?;
         let mut last_end = 0;
@@ -693,5 +693,17 @@ impl KoreanParser {
         }
 
         None
+    }
+}
+
+#[async_trait]
+impl Parser for KoreanParser {
+    async fn parse(&self, text: &str) -> Result<Vec<Segment>> {
+        let mut segs = vec![];
+        let mut stream = Box::pin(self.parse_stream(text)?);
+        while let Some(seg) = stream.next().await {
+            segs.push(seg?);
+        }
+        Ok(segs)
     }
 }

@@ -1,10 +1,13 @@
 use std::{collections::BTreeMap, ops::Range};
 
-use futures::StreamExt;
-use korean::KoreanParser;
+use alpha::AlphabeticParser;
+use axum::async_trait;
+use korean::{KoreanParser, MecabConfig};
+use serde::{Deserialize, Serialize};
 
 use crate::{dict::{Dictionary, Word}, doc::Document, Result};
 
+pub mod alpha;
 pub mod korean;
 
 pub struct Segment {
@@ -20,7 +23,44 @@ impl Segment {
     }
 }
 
-pub async fn analyze_document(doc: Document, parser: &KoreanParser, dict: &Dictionary) -> Result<Document> {
+#[async_trait]
+pub trait Parser {
+    async fn parse(&self, text: &str) -> Result<Vec<Segment>>;
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MorphConfig {
+    #[default]
+    Alphabetic,
+    Korean(MecabConfig),
+}
+
+pub enum Morph {
+    Alphabetic,
+    Korean(KoreanParser)
+}
+
+impl Morph {
+    pub fn load(config: &MorphConfig, lit_dict: Dictionary) -> Result<Self> {
+        Ok(match config {
+            MorphConfig::Alphabetic => Self::Alphabetic,
+            MorphConfig::Korean(mecab) => Self::Korean(KoreanParser::load(mecab, lit_dict)?),
+        })
+    }
+}
+
+#[async_trait]
+impl Parser for Morph {
+    async fn parse(&self, text: &str) -> Result<Vec<Segment>> {
+        match self {
+            Self::Alphabetic => AlphabeticParser.parse(text).await,
+            Self::Korean(p) => p.parse(text).await
+        }
+    }
+}
+
+pub async fn analyze_document<P: Parser + ?Sized>(doc: Document, parser: &P, dict: &Dictionary) -> Result<Document> {
     if doc.info::<BTreeMap<usize, Segment>>().is_some() {
         return Ok(doc);
     }
@@ -31,12 +71,11 @@ pub async fn analyze_document(doc: Document, parser: &KoreanParser, dict: &Dicti
         if text.trim().is_empty() {
             continue;
         }
-        let mut stream = Box::pin(parser.parse(text)?);
-        while let Some(seg) = stream.next().await {
-            let seg = seg?.with_offset(span.start);
-            if seg.words.is_empty() {
-                continue;
-            }
+        for seg in parser.parse(text).await? {
+            let seg = seg.with_offset(span.start);
+            // if seg.words.is_empty() {
+            //     continue;
+            // }
 
             let mut words = dict.find_words_by_text(&seg.text).await?;
             let dict_words_empty = words.is_empty();
