@@ -5,7 +5,7 @@ use clap::Parser;
 use lit::config::Config;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use sqlx::{types::chrono::{DateTime, Local, TimeZone, Utc}, Connection, Database, QueryBuilder, SqliteConnection};
+use sqlx::{types::chrono::{DateTime, Local, TimeZone, Utc}, Database, QueryBuilder};
 use tokio::{fs::File, io::{AsyncReadExt, BufReader}};
 use url::Url;
 
@@ -20,9 +20,6 @@ struct Args {
 
     #[arg(long, help="tags to apply to the book", value_delimiter=',')]
     tags: Vec<String>,
-
-    #[arg(long, help="path to database file")]
-    db: String,
 
     #[arg(long, help="title of the book")]
     title: Option<String>,
@@ -173,7 +170,7 @@ async fn main() -> Result<()> {
         Utc.timestamp_opt(md.timestamp, 0).unwrap()
     }));
 
-    let mut conn = SqliteConnection::connect(&args.db).await?;
+    let pool = config.database.open().await?;
 
     let mut title = title;
     if args.allow_duplicate_title {
@@ -182,7 +179,7 @@ async fn main() -> Result<()> {
         loop {
             let (count,): (i32,) = sqlx::query_as("SELECT COUNT(*) FROM book WHERE title = ?")
                .bind(&title)
-               .fetch_one(&mut conn)
+               .fetch_one(&pool)
                .await?;
             if count == 0 {
                 break;
@@ -228,7 +225,7 @@ async fn main() -> Result<()> {
         tokio::fs::copy(args.audio.clone().unwrap(), config.book_audio_path().join(audio.clone().unwrap())).await?;
     }
 
-    let mut txn = conn.begin().await?;
+    let mut txn = pool.begin().await?;
 
     let mut existing_id = None;
     if args.overwrite {
