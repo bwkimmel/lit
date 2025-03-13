@@ -20,9 +20,7 @@
   {% if word.tags %}
     <ul class="word-tags">
       {% for tag in word.tags %}
-        {% if tag not in hide_tags %}
-          <li>{{ tag }}</li>
-        {% endif %}
+        <li>{{ tag }}</li>
       {% endfor %}
     </ul>
   {% endif %}

@@ -137,13 +137,14 @@ struct WordInfo {
     deps: Vec<String>,
 }
 
-async fn lookup_ancestor_words(seg: &Segment, ctx_dict: &Dictionary) -> Result<WordInfo> {
+async fn lookup_ancestor_words(seg: &Segment, ctx_dict: &Dictionary, display: &DisplayConfig) -> Result<WordInfo> {
     let parents = seg.words.iter().flat_map(|w| w.parents.clone());
     let mut dict = ctx_dict.find_word_trees_by_text(parents).await?;
     dict.insert(seg.text.clone(), seg.words.clone());
     for (_, words) in dict.iter_mut() {
         for word in words.iter_mut() {
             word.resolved_status = Some(ctx_dict.resolve_status(word).await?);
+            word.tags = word.tags.iter().cloned().filter(|w| !display.hide_tags.contains(w)).collect();
         }
     }
     let words = dict.get(&seg.text).unwrap();
@@ -212,7 +213,7 @@ impl<'a> SnippetRenderer for TeraSnippetRenderer<'a> {
             pos = seg.range.end;
 
             let (min_status, max_status) = self.dict.resolve_stati(seg.words.iter()).await?;
-            let word_info = lookup_ancestor_words(seg, &self.dict).await?;
+            let word_info = lookup_ancestor_words(seg, &self.dict, &self.display).await?;
             let words = word_info.dict.get(&seg.text).unwrap();
 
             let mut ctx = tera::Context::new();
@@ -221,7 +222,6 @@ impl<'a> SnippetRenderer for TeraSnippetRenderer<'a> {
             ctx.insert("status", &max_status);
             ctx.insert("min_status", &min_status);
             ctx.insert("dict", &word_info.dict);
-            ctx.insert("hide_tags", &self.display.hide_tags);
             ctx.insert("deps", &word_info.deps);
             result += time!(t, self.tera.render("inline_word.html", &ctx)?).trim();
         }
@@ -750,7 +750,7 @@ struct BookCues {
     cues: Vec<BookCue>,
 }
 
-async fn render_book_cue(doc: &Document, cue: &Cue, dict: &Dictionary) -> Result<BookCue> {
+async fn render_book_cue(doc: &Document, cue: &Cue, dict: &Dictionary, display: &DisplayConfig) -> Result<BookCue> {
     let Some(words) = doc.info::<BTreeMap<usize, Segment>>() else {
         return status_msg(StatusCode::INTERNAL_SERVER_ERROR, "no word info");
     };
@@ -758,7 +758,7 @@ async fn render_book_cue(doc: &Document, cue: &Cue, dict: &Dictionary) -> Result
     let mut tokens = vec![];
     let mut pos = cue.text_range.start;
     for (start, seg) in words.range(cue.text_range.clone()) {
-        let seg = lookup_ancestor_words(seg, dict).await?.seg;
+        let seg = lookup_ancestor_words(seg, dict, display).await?.seg;
         if *start > pos {
             let text = doc.text[pos..*start].to_string() + "\0";
             for (i, line) in text.lines().enumerate() {
@@ -853,7 +853,7 @@ async fn get_book_cues(
     let book_cues = cues;
     let mut cues = vec![];
     for cue in book_cues[min..=max].iter() {
-        cues.push(render_book_cue(doc, cue, &ctx.dict).await?);
+        cues.push(render_book_cue(doc, cue, &ctx.dict, &ctx.config.display).await?);
     }
 
     Ok(Json(BookCues { cues }))
@@ -941,7 +941,7 @@ async fn get_book_word(
     };
 
     let seg = must(words.get(&offset))?;
-    let word_info = lookup_ancestor_words(seg, &ctx.dict).await?;
+    let word_info = lookup_ancestor_words(seg, &ctx.dict, &ctx.config.display).await?;
     let (min_status, max_status) = ctx.dict.resolve_stati(word_info.seg.words.iter()).await?;
 
     let word_ids = word_info.seg.words.iter().filter_map(|w| w.id).collect_vec();
