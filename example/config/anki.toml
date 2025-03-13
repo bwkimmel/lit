@@ -48,7 +48,7 @@ include_tags = [
 # Anki export to update existing cards, rather than create new ones. If you're
 # starting from scratch, this can be omitted.
 #
-#guids_export = "/mnt/c/Users/intre/OneDrive/Documents/Korean.txt"
+#guids_export = "export.txt"
 
 # Directory containing user data (which, in turn, contains word images). This
 # path may be absolute, or relative to this file.
