@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, ops::Range};
 
 use alpha::AlphabeticParser;
 use axum::async_trait;
-use korean::{KoreanParser, MecabConfig};
+use korean::{KoreanConfig, KoreanParser};
 use serde::{Deserialize, Serialize};
 
 use crate::{dict::{Dictionary, Word}, doc::Document, Result};
@@ -30,10 +30,11 @@ pub trait Parser {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum MorphConfig {
     #[default]
     Alphabetic,
-    Korean(MecabConfig),
+    Korean(KoreanConfig),
 }
 
 pub enum Morph {
@@ -45,7 +46,7 @@ impl Morph {
     pub fn load(config: &MorphConfig, lit_dict: Dictionary) -> Result<Self> {
         Ok(match config {
             MorphConfig::Alphabetic => Self::Alphabetic,
-            MorphConfig::Korean(mecab) => Self::Korean(KoreanParser::load(mecab, lit_dict)?),
+            MorphConfig::Korean(cfg) => Self::Korean(KoreanParser::load(cfg, lit_dict)?),
         })
     }
 }

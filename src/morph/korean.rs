@@ -333,6 +333,13 @@ pub struct MecabConfig {
     pub char: RelativePathBuf,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct KoreanConfig {
+    mecab: MecabConfig,
+    patterns: RelativePathBuf,
+    overrides: Option<RelativePathBuf>,
+}
+
 #[derive(Debug, Deserialize)]
 struct OverrideRow {
     word: String,
@@ -365,18 +372,19 @@ impl FromStr for WordParsing {
 }
 
 impl KoreanParser {
-    pub fn load(config: &MecabConfig, lit_dict: Dictionary) -> Result<Self> {
-        let sysdic = Blob::open(config.sysdic.relative())?;
-        let unkdic = Blob::open(config.unkdic.relative())?;
-        let matrix = Blob::open(config.matrix.relative())?;
-        let char = Blob::open(config.char.relative())?;
+    pub fn load(config: &KoreanConfig, lit_dict: Dictionary) -> Result<Self> {
+        let sysdic = Blob::open(config.mecab.sysdic.relative())?;
+        let unkdic = Blob::open(config.mecab.unkdic.relative())?;
+        let matrix = Blob::open(config.mecab.matrix.relative())?;
+        let char = Blob::open(config.mecab.char.relative())?;
         let dict = Dict::load(sysdic, unkdic, matrix, char)
             .map_err(|e| anyhow!("failed to load mecab dictionary: {e}"))?;
 
         let mut rules = RuleTrie::new();
         let mut rdr = csv::ReaderBuilder::new()
             .flexible(true)
-            .from_path("resources/korean_term_patterns.csv")?;
+            .comment(Some(b'#'))
+            .from_path(config.patterns.relative())?;
         for rule in rdr.deserialize::<RuleRow>() {
             let rule: Rule = rule?.into();
             let mut node = &mut rules;
@@ -391,11 +399,14 @@ impl KoreanParser {
         }
         
         let mut overrides: HashMap<String, Vec<WordParsing>> = HashMap::new();
-        let mut rdr = csv::ReaderBuilder::new()
-            .from_path("resources/korean_parse_overrides.csv")?;
-        for ovr in rdr.deserialize::<OverrideRow>() {
-            let ovr = ovr?;
-            overrides.entry(ovr.word).or_default().push(ovr.parsing);
+        if let Some(ref path) = config.overrides {
+            let mut rdr = csv::ReaderBuilder::new()
+                .comment(Some(b'#'))
+                .from_path(path.relative())?;
+            for ovr in rdr.deserialize::<OverrideRow>() {
+                let ovr = ovr?;
+                overrides.entry(ovr.word).or_default().push(ovr.parsing);
+            }
         }
 
         Ok(KoreanParser { dict, rules, lit_dict, overrides })

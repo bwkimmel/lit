@@ -68,13 +68,20 @@ clean_vtt.truncate.truncated_repetitions = 3
 clean_vtt.truncate.truncation_suffix = "..."
 clean_vtt.merge.max_merge_gap_millis = 500
 
+# Optionally, uncomment the following sections if using this for Korean. See
+# example files under example/config/korean/*.csv for format.
+#
+#[morph.korean]
+#patterns = "../korean_term_patterns.csv"
+#overrides = "../korean_term_overrides.csv" # OPTIONAL
+
 # Mecab dictionary files for Korean. You can build these from here:
 #   https://bitbucket.org/eunjeon/mecab-ko-dic/src/master/
 # Or download my prebuilt dictionary files from here:
 #   https://www.dropbox.com/scl/fo/4dpe9curznfh58yicvydz/APtTAtu51f4qAkiMc5RUDp4?rlkey=q6cap8mhpmh73cr5dy7591vqy&st=8is8hric&dl=0
 # The paths may be absolute, or relative to this file.
 # 
-#[morph.korean]
+#[morph.korean.mecab]
 #sysdic = "../mecab_ko_dic/sys.dic"
 #unkdic = "../mecab_ko_dic/unk.dic"
 #matrix = "../mecab_ko_dic/matrix.bin"

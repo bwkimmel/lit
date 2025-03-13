@@ -1,0 +1,86 @@
+# Term patterns for Korean parsing.
+#
+# Columns:
+#   pattern     - the pattern to match against. If 'translation' is non-empty,
+#                 then this the pattern must match the *whole* word to be
+#                 applicable.
+#   translation - the translation to use for words that match this pattern.
+#   tags        - tags to add to the generated word if this rule is applied.
+#                 Multiple tags may be specified as a comma-separated list. Note
+#                 that the field must be quoted in this case.
+#   parents     - parent words to add to the generated word if this rule is
+#                 applied. Multiple parents may be specified as a
+#                 comma-separated list. Note that the field must be quoted in
+#                 this case.
+#   output      - the pattern to replace the matched pattern with.
+#
+# For each row, exactly one of 'translation' or 'output' must be specified. For
+# 'translation' rules, the pattern must match the whole word for the rule to be
+# applied. For 'output' rules, a partial match is sufficient. A 'translation'
+# rule will always be preferred over an 'output' rule. If both 'translation' and
+# 'output' are unspecified, the rule is treated as an 'output' rule that removes
+# the matched elements.
+#
+# Patterns are plus-separated sequences of terms, with each term having the form
+# <text>/<part_of_speech>/<subtype>. Although Mecab supports "subtypes" -- e.g.,
+# proper nouns (NNP) may be further classified as names, places, etc. -- LIT
+# ignores these, so <subtype> is always '*'. A '*' used for the <text> field on
+# the first element of a pattern matches the root word.
+#
+# Several example rules are provided below, but you may wish to start with an
+# empty patterns file and add your own rules as you discover them.
+#
+pattern,translation,tags,parents,output
+#
+# Treat all nouns the same by replacing all the */NN??/* patterns with */NN/*
+#
+*/NNG/*,,,,*/NN/*
+*/NNP/*,,,,*/NN/*
+*/NNB/*,,,,*/NN/*
+*/NNBC/*,,,,*/NN/*
+#
+# If the pattern ends up being reduced to a single term, translate it as "~".
+# 
+*/NN/*,~
+*/NP/*,~
+*/MAG/*,~
+*/XSN/*,~
+#
+# Canonicalize different ways of expressing the same thing (in this case, the
+# past tense form), so that separate translation rules are not needed every time
+# one of these shows up in a larger pattern.
+#
+았/EP/*,,,,었/EP/*
+ㅏㅆ/EP/*,,,,었/EP/*
+ㅓㅆ/EP/*,,,,었/EP/*
+ㅕㅆ/EP/*,,,,었/EP/*
+#
+# For words with a topic/subject/object marker, translate it the same as if the
+# marker were removed, but add a tag to the generated word.
+#
+는/JX/*,,topic
+를/JKO/*,,object
+가/JKS/*,,subject
+#
+# Replace honorific marker with their non-honorific equivalents for translation
+# purposes, but add the 'honorific' tag to the generated word.
+#
+께서/JKS/*,,honorific,,가/JKS/*
+께서/JKS/*+는/JX/*,,honorific,,는/JX/*
+께/JKB/*,,honorific,,한테/JKB/*
+께/XSN/*,,honorific,,한테/JKB/*
+#
+# Replace some compound verbs with a single verb element, but add the
+# corresponding auxilliary verb as a parent to the generated word.
+#
+*/VV/*+어/EC/*+있/VX/*,,,-있다,*/VV/*
+*/VV/*+어/EC/*+오/VX/*,,,-오다,*/VV/*
+*/VV/*+어/EC/*+가/VX/*,,,-가다,*/VV/*
+#
+# Some example basic translation rules.
+#
+*/VV/*+어요/EF/*,~
+*/NN/*+도/JX/*,~ also
+*/VV/*+면/EC/*,if/when ~
+*/NN/*+로/JKB/*+만/JX/*,only toward/using ~
+*/VV/*+었/EP/*+습니다/EF/*,~ed

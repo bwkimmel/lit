@@ -1,0 +1,20 @@
+# Korean parse overrides file.
+#
+# Columns:
+#   word    - the word to apply the override to.
+#   parsing - the parsing output for the word.
+#
+# The parsing is a semicolon-separated list of patterns applied to substrings of
+# the original word. The form is:
+#
+#   <substring>(<pattern>);<substring>(<pattern>);...
+#
+# Each pattern is as described in the 'korean_term_patterns.csv' example file.
+# The substrings must match the original word when concatenated.
+#
+# A few examples are provided below.
+#
+word,parsing
+은으로,은(은/NNG/*);으로(으로/JKB/*)
+실어요,실(싣/VV/*);어요(어요/EF/*)
+잠가요,잠가(잠그/VV/*+아/EC/*);요(요/EF/*)
