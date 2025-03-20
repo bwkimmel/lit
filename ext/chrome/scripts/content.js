@@ -313,7 +313,7 @@ async function fetchCues(t) {
     cues.push({
       start: video.duration + 1.0,
       end: video.duration + 2.0,
-      lines: null,
+      lines: null
     });
   }
 }
