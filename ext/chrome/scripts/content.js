@@ -107,6 +107,12 @@ async function onCueMouseOut(e) {
   }, 250);
 }
 
+function htmlDecode(input) {
+  var textarea = document.createElement('textarea');
+  textarea.innerHTML = input;
+  return textarea.value;
+}
+
 async function update() {
   if (!video) { return; }
   const t = video.currentTime;
@@ -166,7 +172,7 @@ async function update() {
         div.appendChild(br);
       }
       for (const token of line.tokens) {
-        const text = document.createTextNode(token.text);
+        const text = document.createTextNode(htmlDecode(token.text));
         var node = text;
         if (token.word) {
           const span = document.createElement('span');
